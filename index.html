@@ -971,7 +971,7 @@ function render(){
   // ── RULES ──
   if(simPhase==="rules"){
     if(mc)mc.style.display="flex";
-    mc.querySelector('#btnBack').style.visibility='hidden';mc.querySelector('#btnBack').style.opacity='0';mc.querySelector('#btnBack').style.pointerEvents='none';
+    mc.querySelector('#btnBack').style.opacity='0.25';mc.querySelector('#btnBack').style.pointerEvents='none';
     mc.querySelector('#btnPlay').style.opacity='0.25';
     mc.querySelector('#btnPlay').style.pointerEvents='none';
     mc.querySelector('#btnPlay').textContent='▶ WEITER';
@@ -995,7 +995,7 @@ function render(){
   }  // ── COLOR PICK ──
   if(simPhase==="board-reveal"){
     if(mc)mc.style.display="flex";
-    mc.querySelector('#btnBack').style.visibility='hidden';mc.querySelector('#btnBack').style.opacity='0';mc.querySelector('#btnBack').style.pointerEvents='none';
+    mc.querySelector('#btnBack').style.opacity='0.25';mc.querySelector('#btnBack').style.pointerEvents='none';
     mc.querySelector('#btnPlay').style.opacity=revealDone?'1':'0.25';
     mc.querySelector('#btnPlay').style.pointerEvents=revealDone?'auto':'none';
     mc.querySelector('#btnPlay').textContent='▶ SPIELEN';
@@ -1063,7 +1063,7 @@ function render(){
   // ── KI DECIDED ──
   if(simPhase==="ki-decided"){
     if(mc)mc.style.display="flex";
-    mc.querySelector('#btnBack').style.visibility='hidden';mc.querySelector('#btnBack').style.opacity='0';mc.querySelector('#btnBack').style.pointerEvents='none';
+    mc.querySelector('#btnBack').style.opacity='0.25';mc.querySelector('#btnBack').style.pointerEvents='none';
     mc.querySelector('#btnPlay').style.opacity='1';
     mc.querySelector('#btnPlay').style.pointerEvents='auto';
     mc.querySelector('#btnPlay').textContent='▶ SPIELEN';
@@ -1179,8 +1179,8 @@ function render(){
   // Update button states
   const _btnBack=mc.querySelector('#btnBack');
   const _backOn=backAvailable&&simPhase==="pushing";
-  _btnBack.style.visibility=_backOn?"visible":"hidden";
-  _btnBack.style.opacity=_backOn?"1":"0";
+  _btnBack.style.opacity=_backOn?"1":"0.25";
+  
   _btnBack.style.pointerEvents=_backOn?"auto":"none";
   const _canPlay=pendingNextTurn&&!_stonesReturning;
   mc.querySelector('#btnPlay').style.opacity=_canPlay?'1':'0.25';
