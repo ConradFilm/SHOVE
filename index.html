@@ -1179,9 +1179,13 @@ function render(){
   // Update button states
   const _btnBack=mc.querySelector('#btnBack');
   const _backOn=backAvailable&&simPhase==="pushing";
-  _btnBack.style.opacity=_backOn?"1":"0.25";
-  
+  _btnBack.style.opacity=_backOn?"1":"0";
   _btnBack.style.pointerEvents=_backOn?"auto":"none";
+  _btnBack.style.width=_backOn?"": "0";
+  _btnBack.style.minWidth=_backOn?"":"0";
+  _btnBack.style.padding=_backOn?"":"0";
+  _btnBack.style.border=_backOn?"":"none";
+  _btnBack.style.overflow="hidden";
   const _canPlay=pendingNextTurn&&!_stonesReturning;
   mc.querySelector('#btnPlay').style.opacity=_canPlay?'1':'0.25';
   mc.querySelector('#btnPlay').style.pointerEvents=_canPlay?'auto':'none';
