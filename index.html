@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@800&display=swap" rel="stylesheet">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SHOVE">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('/SHOVE/service-worker.js'));
+}
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a1628">
@@ -380,9 +390,9 @@ function findWordsInLine(cells){
         const w=seg.slice(a,b).map(c=>c.ch.toUpperCase()).join("");
         if(WORDS.has(w.toLowerCase()))found.push({word:w,start:i+a,end:i+b-1});
       }
-      for(const w of found){
-        if(!found.some(o=>o!==w&&o.start<=w.start&&o.end>=w.end))words.push(w);
-      }
+      // Include ALL valid words (including subwords) so they appear in beforeWords
+      // This prevents subwords of longer words from being counted as "new" after a push
+      for(const w of found)words.push(w);
     }
     i=j;
   }
@@ -883,31 +893,37 @@ function humanDoPush(push){
   const beforeWords=findAllWords(board);
   moveNum++;animateFall(push);
   prevBoard=JSON.parse(JSON.stringify(board));kiSelPos=null;
-  // Compare to bot optimal for perception mirror
-  try{
-    const ko=kiPickBestMove(prevBoard,humanPlayer);
-    if(ko&&ko.push){
-      const kbj=ko.jumped?applyJump(prevBoard,ko.jump.fromX,ko.jump.fromY,ko.jump.toX,ko.jump.toY):prevBoard;
-      const knb=applyPush(kbj,ko.push);
-      const kw=getNewWords(beforeWords,findAllWords(knb));
-      const kk=ko.push.result.removed.filter(x=>x.owner!==humanPlayer).length;
-      const kills=push.result.removed.filter(x=>x.owner!==humanPlayer).length;
-      const afterW=getNewWords(beforeWords,findAllWords(applyPush(board,push)));
-      const kl=kw.length>0?Math.max(...kw.map(w=>w.word.length)):0;
-      const hl=afterW.length>0?Math.max(...afterW.map(w=>w.word.length)):0;
-      if(((kw.length>0&&afterW.length===0)||(kl>=hl+2)||(kk>kills+1))&&gameStats.missedMoves.length<5){
-        gameStats.missedMoves.push({moveNum,kiWords:kw.map(w=>w.word),kiLongest:kl,kiKills:kk,
-          humanWords:afterW.map(w=>w.word),humanKills:kills,
-          kiMove:{x:ko.push.x,y:ko.push.y,dir:ko.push.dir.n,destX:ko.push.destX,destY:ko.push.destY},
-          jumped:ko.jumped||false,jumpFrom:ko.jumped?{x:ko.jump.fromX,y:ko.jump.fromY}:null,
-          jumpTo:ko.jumped?{x:ko.jump.toX,y:ko.jump.toY}:null});
-      }
-    }
-  }catch(e){}
+  // Defer bot analysis to after animation — prevents blocking the UI thread
+  const _beforeWordsSnap=beforeWords;
+  const _prevBoardSnap=JSON.parse(JSON.stringify(prevBoard));
+  const _pushSnap=push;
   animateSlidePush(push,()=>{
-    board=applyPush(board,push);postPushBoard=JSON.parse(JSON.stringify(board));
+    board=applyPush(board,_pushSnap);postPushBoard=JSON.parse(JSON.stringify(board));
     if(checkGameEnd()){render();return;}
-    const afterWords=findAllWords(board);const newWords=getNewWords(beforeWords,afterWords);
+    const afterWords=findAllWords(board);const newWords=getNewWords(_beforeWordsSnap,afterWords);
+    // Run bot analysis after animation — deferred so UI is not blocked
+    setTimeout(()=>{
+      try{
+        const ko=kiPickBestMove(_prevBoardSnap,humanPlayer);
+        if(ko&&ko.push){
+          const kbj=ko.jumped?applyJump(_prevBoardSnap,ko.jump.fromX,ko.jump.fromY,ko.jump.toX,ko.jump.toY):_prevBoardSnap;
+          const knb=applyPush(kbj,ko.push);
+          const kw=getNewWords(_beforeWordsSnap,findAllWords(knb));
+          const kk=ko.push.result.removed.filter(x=>x.owner!==humanPlayer).length;
+          const kills=_pushSnap.result.removed.filter(x=>x.owner!==humanPlayer).length;
+          const afterW=getNewWords(_beforeWordsSnap,findAllWords(applyPush(_prevBoardSnap,_pushSnap)));
+          const kl=kw.length>0?Math.max(...kw.map(w=>w.word.length)):0;
+          const hl=afterW.length>0?Math.max(...afterW.map(w=>w.word.length)):0;
+          if(((kw.length>0&&afterW.length===0)||(kl>=hl+2)||(kk>kills+1))&&gameStats.missedMoves.length<5){
+            gameStats.missedMoves.push({moveNum,kiWords:kw.map(w=>w.word),kiLongest:kl,kiKills:kk,
+              humanWords:afterW.map(w=>w.word),humanKills:kills,
+              kiMove:{x:ko.push.x,y:ko.push.y,dir:ko.push.dir.n,destX:ko.push.destX,destY:ko.push.destY},
+              jumped:ko.jumped||false,jumpFrom:ko.jumped?{x:ko.jump.fromX,y:ko.jump.fromY}:null,
+              jumpTo:ko.jumped?{x:ko.jump.toX,y:ko.jump.toY}:null});
+          }
+        }
+      }catch(e){}
+    },0);
     hPhase="idle";hSel=null;hDest=null;
     const kills=push.result.removed.filter(x=>x.owner!==humanPlayer).length;
     gameStats[humanPlayer===P1?'p1elim':'p2elim']+=kills;
@@ -1211,7 +1227,7 @@ function render(){
         <p style="margin-bottom:10px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Schiebe einen deiner Buchstaben in eine beliebige Richtung — so weit du willst, auch über leere Felder. Du kannst auch auf ein freies Feld springen und von dort schieben.</p>
         <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Mindestens ein Buchstabe muss vom Brett fallen.</p>
         <p style="margin-bottom:14px"><b style="color:rgba(255,255,255,.9)">Wörter bilden = Buchstaben zurückgewinnen</b><br>
-        Entsteht durch deinen Schubs ein neues Wort mit mindestens vier Buchstaben, gewinnst du so viele Buchstaben zurück, wie du gegnerische Buchstaben vom Brett geschoben hast. Nur das längste neue Wort zählt — auf dem gesamten Brett. Sind zwei Wörter gleich lang, zählen beide.</p>
+        Entsteht durch deinen Schubs ein neues Wort mit mindestens vier Buchstaben, gewinnst du so viele Buchstaben zurück, wie du gegnerische Buchstaben vom Brett geschoben hast. Ein Wort zählt nur, wenn sich mindestens ein Buchstabe davon bewegt hat. Nur das längste neue Wort zählt — auf dem gesamten Brett. Sind zwei Wörter gleich lang, zählen beide.</p>
         <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Spielende:</b> Wer nur noch drei Buchstaben hat, verliert.</p>
         <p style="margin-top:18px;padding:10px 14px;border-radius:10px;background:rgba(224,120,32,.07);border:1px solid rgba(224,120,32,.35);font-size:13px;line-height:1.7"><b style="color:#e07820;font-size:14px">Der SHOVE Bot</b> — Er sieht jedes Wort auf dem Brett.</p>
       </div>
