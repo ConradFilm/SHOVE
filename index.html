@@ -1559,7 +1559,10 @@ function humanAITurn(){
     const pwAll=findAllWords(applyPush(simB,best.push)).filter(w=>!bwSimSet.has(wordKey(w)));
     // If pw empty but worker found a word, use it directly
     const pw=pwAll.length>0?pwAll:(best.word?[best.word]:[]);
-    if(location.hostname.includes('github'))console.log('DEBUG pw:',JSON.stringify(pw),'best.word:',JSON.stringify(best.word));
+    if(location.hostname.includes('github')){
+      const afterWords=findAllWords(applyPush(simB,best.push));
+      console.log('DEBUG bwSimSet size:',bwSimSet.size,'afterWords:',afterWords.length,'pwAll:',pwAll.length,'pw:',pw.length,'best.word:',best.word?.word,'WORDS size:',WORDS.size);
+    }
     // Phase A: announce word, highlight only if already on board
     kiWordHL={};
     activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();
