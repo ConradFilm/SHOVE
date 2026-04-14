@@ -1545,7 +1545,12 @@ function humanAITurn(){
     if(_w){
       _w.postMessage({board:JSON.parse(JSON.stringify(board)),player:aiPlayer,kl:kiLevel});
       _w.onmessage=function(ev){const best=ev.data&&ev.data.best||null;
-    if(!best){comment="Bot hat keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
+    if(!best){
+      // Fallback: try synchronous
+      const _fb=kiPickBestMove(board,aiPlayer);
+      if(!_fb){comment="Bot hat keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
+      ev={data:{best:_fb}};
+    }
     // Preview word
     const ch=board[K(best.jumped?best.jump.fromX:best.push.x,best.jumped?best.jump.fromY:best.push.y)]?.ch||"?";
     // Use same word-detection logic as kiPickBestMove
