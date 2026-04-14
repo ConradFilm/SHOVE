@@ -4,16 +4,11 @@
 <meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@800&display=swap" rel="stylesheet">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<link rel="manifest" href="manifest.json">
+
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SHOVE">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>
-if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>navigator.serviceWorker.register('/SHOVE/service-worker.js'));
-}
-</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a1628">
@@ -302,6 +297,17 @@ function oppDangerScore(nb,opp,bSet){
   return maxLen;
 }
 
+function oppMaxKills(nb,opp){
+  // Max bot stones the opponent can eliminate in one push from this position
+  const oppPushes=getPushMoves(nb,opp);
+  let max=0;
+  for(const p of oppPushes){
+    const kills=p.result.removed.filter(x=>x.owner!==opp).length;
+    if(kills>max)max=kills;
+  }
+  return max;
+}
+
 function evalMoves(b,player,bSet,maxJumpTargets){
   const opp=player===P1?P2:P1;
   const myCount=cnt(b,player),oppCount=cnt(b,opp);
@@ -314,7 +320,7 @@ function evalMoves(b,player,bSet,maxJumpTargets){
     const el=p.result.removed.filter(x=>x.owner!==player).length;
     let sc=kiScore(myCount,oppCount,el,nw.length>0?el:0,lw,cnt(nb,opp),false);
     if(el===0)sc-=200;
-    if(kiLevel>1){const dl=oppDangerScore(nb,opp,bSet);const dw=kiLevel===3?20:8;const rawD=dl>=7?dw*5:dl>=6?dw*3:dl>=5?dw*2:dl>=4?dw:0;const comp=el*(kiLevel===3?9:4);sc-=Math.max(0,rawD-comp);}
+    if(kiLevel>1){const dl=oppDangerScore(nb,opp,bSet);const dw=kiLevel===3?20:8;const rawD=dl>=7?dw*5:dl>=6?dw*3:dl>=5?dw*2:dl>=4?dw:0;const comp=el*(kiLevel===3?9:4);sc-=Math.max(0,rawD-comp);if(kiLevel===3){const mk=oppMaxKills(nb,opp);sc-=mk*30;}}
     results.push({move:{push:p,jumped:false,result:p.result,word:nw[0]||null},score:sc,board:nb});
   }
   const myTiles=[];for(const k in b)if(b[k]&&b[k].owner===player)myTiles.push(PK(k));
@@ -331,7 +337,7 @@ function evalMoves(b,player,bSet,maxJumpTargets){
         const el2=pf.result.removed.filter(x=>x.owner!==player).length;
         let sc2=kiScore(myCount,oppCount,el2,nw2.length>0?el2:0,lw2,cnt(nb2,opp),true);
         if(el2===0)sc2-=200;
-        if(kiLevel>1){const dl2=oppDangerScore(nb2,opp,bSet);const dw2=kiLevel===3?20:8;const rawD2=dl2>=7?dw2*5:dl2>=6?dw2*3:dl2>=5?dw2*2:dl2>=4?dw2:0;const comp2=el2*(kiLevel===3?9:4);sc2-=Math.max(0,rawD2-comp2);}
+        if(kiLevel>1){const dl2=oppDangerScore(nb2,opp,bSet);const dw2=kiLevel===3?20:8;const rawD2=dl2>=7?dw2*5:dl2>=6?dw2*3:dl2>=5?dw2*2:dl2>=4?dw2:0;const comp2=el2*(kiLevel===3?9:4);sc2-=Math.max(0,rawD2-comp2);if(kiLevel===3){const mk2=oppMaxKills(nb2,opp);sc2-=mk2*30;}}
         results.push({move:{push:pf,jumped:true,jump:{fromX:t.x,fromY:t.y,toX:jt.x,toY:jt.y,ch:b[K(t.x,t.y)].ch},result:pf.result,word:nw2[0]||null},score:sc2,board:nb2});
       }
     }
@@ -1119,6 +1125,25 @@ function restoreSnap(snap){
 // ═══ BOT AI ═══
 function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
+function oppDangerScore_fb(nb,opp,bSet){
+  const oppPushes=getPushMoves(nb,opp);
+  let maxLen=0;
+  for(const p of oppPushes){
+    const nb2=applyPush(nb,p);
+    const nw=findAllWords(nb2).filter(w=>!bSet.has(wordKey(w)));
+    if(nw.length>0){const len=Math.max(...nw.map(w=>w.word.length));if(len>maxLen)maxLen=len;}
+  }
+  return maxLen;
+}
+function oppMaxKills_fb(nb,opp){
+  const oppPushes=getPushMoves(nb,opp);
+  let max=0;
+  for(const p of oppPushes){
+    const kills=p.result.removed.filter(x=>x.owner!==opp).length;
+    if(kills>max)max=kills;
+  }
+  return max;
+}
 function kiScore(myCount,oppCount,eliminated,stonesBack,longestWord,oppAfter,isJump){
   // Level-specific weights
   // Nice:  elim-heavy, weak word bonus → plays like a casual human
@@ -1159,7 +1184,9 @@ function evalMoves(b,player,bSet,maxJumpTargets){
     const nw=findAllWords(nb).filter(w=>!bSet.has(wordKey(w)));
     const lw=nw.length>0?4:0;// binary: word exists or not
     const el=p.result.removed.filter(x=>x.owner!==player).length;
-    const sc=kiScore(myCount,oppCount,el,nw.length>0?el:0,lw,cnt(nb,opp),false);
+    let sc=kiScore(myCount,oppCount,el,nw.length>0?el:0,lw,cnt(nb,opp),false);
+    if(el===0)sc-=200;
+    if(kiLevel>1){const dl=oppDangerScore_fb(nb,opp,bSet);const dw=kiLevel===3?20:8;const rawD=dl>=7?dw*5:dl>=6?dw*3:dl>=5?dw*2:dl>=4?dw:0;const comp=el*(kiLevel===3?9:4);sc-=Math.max(0,rawD-comp);if(kiLevel===3){const mk=oppMaxKills_fb(nb,opp);sc-=mk*30;}}
     results.push({move:{push:p,jumped:false,result:p.result,word:nw[0]||null},score:sc,board:nb});
   }
   const myTiles=[];for(const k in b)if(b[k]&&b[k].owner===player)myTiles.push(PK(k));
@@ -1174,7 +1201,9 @@ function evalMoves(b,player,bSet,maxJumpTargets){
         const nw2=findAllWords(nb2).filter(w=>!bSet.has(wordKey(w)));
         const lw2=nw2.length>0?4:0;
         const el2=pf.result.removed.filter(x=>x.owner!==player).length;
-        const sc2=kiScore(myCount,oppCount,el2,nw2.length>0?el2:0,lw2,cnt(nb2,opp),true);
+        let sc2=kiScore(myCount,oppCount,el2,nw2.length>0?el2:0,lw2,cnt(nb2,opp),true);
+        if(el2===0)sc2-=200;
+        if(kiLevel>1){const dl2=oppDangerScore_fb(nb2,opp,bSet);const dw2=kiLevel===3?20:8;const rawD2=dl2>=7?dw2*5:dl2>=6?dw2*3:dl2>=5?dw2*2:dl2>=4?dw2:0;const comp2=el2*(kiLevel===3?9:4);sc2-=Math.max(0,rawD2-comp2);if(kiLevel===3){const mk2=oppMaxKills_fb(nb2,opp);sc2-=mk2*30;}}
         results.push({move:{push:pf,jumped:true,jump:{fromX:t.x,fromY:t.y,toX:jt.x,toY:jt.y,ch:b[K(t.x,t.y)].ch},result:pf.result,word:nw2[0]||null},score:sc2,board:nb2});
       }
     }
