@@ -1557,7 +1557,8 @@ function humanAITurn(){
     const simB=best.jumped?applyJump(board,best.jump.fromX,best.jump.fromY,best.jump.toX,best.jump.toY):board;
     const bwSimSet=new Set(findAllWords(simB).map(wordKey));
     const pwAll=findAllWords(applyPush(simB,best.push)).filter(w=>!bwSimSet.has(wordKey(w)));
-    const pw=pwAll;// all new words count equally
+    // If pw empty but worker found a word, use it directly
+    const pw=pwAll.length>0?pwAll:(best.word?[best.word]:[]);
     // Phase A: announce word, highlight only if already on board
     kiWordHL={};
     activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();
