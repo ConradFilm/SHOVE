@@ -1767,7 +1767,7 @@ function humanAITurn(){
       const _fb=kiPickBestMove(board,aiPlayer);
       kiLevel=_savedKl;
       if(!_fb){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
-      ev={data:{best:_fb}};
+      best=_fb;
     }
     // Preview word
     const ch=board[K(best.jumped?best.jump.fromX:best.push.x,best.jumped?best.jump.fromY:best.push.y)]?.ch||"?";
