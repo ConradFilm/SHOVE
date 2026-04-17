@@ -2120,7 +2120,7 @@ function render(){
   if(simPhase==="rules"){
     if(mc)mc.style.display="none";
 
-    app.innerHTML=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 8px;animation:slideIn .4s ease-out">
+    app.innerHTML=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:48px 8px 20px;animation:slideIn .4s ease-out">
       <div class="title-sm" style="margin-bottom:20px">SHOVE – So geht's</div>
       <div style="max-width:360px;font-size:13px;line-height:1.9;color:rgba(255,255,255,.75)">
         <p style="margin-bottom:14px">Du spielst auf einem 7×7 Brett mit 48 Buchstaben. <b style="color:#e07820">Orange</b> gegen <b style="color:#9b6ab5">Violett</b>. Ein Spieler entscheidet, wer beginnt. Der andere wählt die Farbe.</p>
@@ -2139,7 +2139,7 @@ function render(){
   }  // ── WORDS SCREEN ──
   if(simPhase==="words"){
     if(mc)mc.style.display="none";
-    app.innerHTML=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 8px;animation:slideIn .4s ease-out">
+    app.innerHTML=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:48px 8px 20px;animation:slideIn .4s ease-out">
       <div class="title-sm" style="margin-bottom:20px">Welche Wörter zählen?</div>
       <div style="max-width:360px;font-size:13px;line-height:1.9;color:rgba(255,255,255,.75)">
         <p style="margin-bottom:14px">Gültig sind <b style="color:rgba(255,255,255,.9)">deutsche Wörter</b> die du im Alltag kennst — Substantive, Verben, Adjektive und ihre geläufigen Formen.</p>
