@@ -680,16 +680,17 @@ function renderGameover(){
           ?`${COLS[m.jumpFrom.x]}${m.jumpFrom.y+1}→${COLS[m.jumpTo.x]}${m.jumpTo.y+1} then ${m.kiMove.dir}`
           :`${COLS[m.kiMove.x]}${m.kiMove.y+1} ${m.kiMove.dir}`;
       }
-      const kiWord=m.kiWords.length>0?m.kiWords.reduce((a,b)=>a.length>=b.length?a:b):"";
+      const kiWord=m.hiddenWord||(m.kiWords.length>0?m.kiWords.reduce((a,b)=>a.length>=b.length?a:b):"");
       const huWord=m.humanWords.length>0?m.humanWords.reduce((a,b)=>a.length>=b.length?a:b):"";
       return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
         <div style="font-size:9px;color:rgba(255,255,255,.7);margin-bottom:4px">Zug ${m.moveNum}</div>
-        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:10px;align-items:baseline">
-          <div style="color:rgba(255,255,255,.7);font-size:9px">Du</div>
-          <div>${huWord?`<span style="color:rgba(255,255,255,.5)">${huWord}</span>`:`<span style="opacity:.3">kein Wort</span>`} · ${m.humanKills} elim.${(!huWord&&m.hiddenWord)?`<div style="margin-top:6px"><span style="color:#fbbf24;font-size:10px;font-weight:700">→ ${m.hiddenWord}</span><br><span style="color:#fbbf24;font-size:9px;opacity:.75">war da</span>${m.hiddenBoard?renderMiniBoard(m.hiddenBoard,humanPlayer,m.hiddenWord):''}</div>`:''}</div>
-          <div style="color:#93c5fd;font-size:9px">Bot</div>
-          <div>${kiWord?`<span style="color:#93c5fd;font-weight:900">${kiWord}</span>`:`<span style="opacity:.4">kein Wort</span>`} · ${m.kiKills} elim. <span style="opacity:.35;font-size:9px">(${moveDesc})</span></div>
-        </div>
+        ${m.hiddenWord?`
+          <div style="margin-top:4px">
+            <span style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:1px">HIDDEN WORD</span>
+            <div style="margin-top:4px"><span style="color:#fbbf24;font-size:13px;font-weight:900;letter-spacing:1px">${m.hiddenWord}</span></div>
+            ${m.hiddenBoard?renderMiniBoard(m.hiddenBoard,humanPlayer,m.hiddenWord):''}
+          </div>`
+        :`<div style="font-size:10px;color:rgba(255,255,255,.3);font-style:italic">kein verstecktes Wort</div>`}
       </div>`;
     }).join("");
     mirrorHtml=`<div style="width:100%;max-width:340px;background:rgba(147,197,253,.04);border:1px solid rgba(147,197,253,.2);border-radius:12px;padding:12px 14px;margin-bottom:12px">
@@ -1609,9 +1610,12 @@ function humanDoPush(push){
   })();
     // Pause 1s so interim comment stays readable, then show result
     // Run analysis after animation — worker to keep sea animation running
-    const _missedW=_getWorker();
+    // Analysis uses a throwaway worker so it doesn't interfere with the bot worker
+    let _missedW=null;
+    try{_missedW=new Worker(_workerURL);}catch(e){}
     if(_missedW){
       _missedW.onmessage=function(ev){
+        _missedW.terminate();
         const ko=ev.data.best;
         try{
           if(ko&&ko.push){
@@ -1635,7 +1639,7 @@ function humanDoPush(push){
           }
         }catch(e){}
       };
-      _missedW.postMessage({board:JSON.parse(JSON.stringify(_prevBoardSnap)),player:humanPlayer,kl:3});// always Sharp for analysis
+      try{_missedW.postMessage({board:JSON.parse(JSON.stringify(_prevBoardSnap)),player:humanPlayer,kl:3});}catch(e){_missedW.terminate();}
     } else {
       setTimeout(()=>{
         try{
@@ -1769,7 +1773,8 @@ function humanAITurn(){
       if(!_fb){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
       best=_fb;
     }
-    // Preview word
+    // Preview word — guard against null best
+    if(!best||!best.push){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
     const ch=board[K(best.jumped?best.jump.fromX:best.push.x,best.jumped?best.jump.fromY:best.push.y)]?.ch||"?";
     // Use same word-detection logic as kiPickBestMove
     const simB=best.jumped?applyJump(board,best.jump.fromX,best.jump.fromY,best.jump.toX,best.jump.toY):board;
@@ -1934,7 +1939,8 @@ function humanAITurn(){
     }else{
       setTimeout(()=>{const best=kiPickBestMove(board,aiPlayer);
     if(!best){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
-    // Preview word
+    // Preview word — guard against null best
+    if(!best||!best.push){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
     const ch=board[K(best.jumped?best.jump.fromX:best.push.x,best.jumped?best.jump.fromY:best.push.y)]?.ch||"?";
     // Use same word-detection logic as kiPickBestMove
     const simB=best.jumped?applyJump(board,best.jump.fromX,best.jump.fromY,best.jump.toX,best.jump.toY):board;
