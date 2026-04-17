@@ -1764,14 +1764,12 @@ function humanAITurn(){
         if(_w.onmessage)_w.onmessage({data:{best:null}});
       },5000);
       _w.onerror=function(){clearTimeout(_botTimeout);_workerFailed=true;_aiWorker=null;if(_w.onmessage)_w.onmessage({data:{best:null}});};
-      _w.onmessage=function(ev){clearTimeout(_botTimeout);const best=ev.data&&ev.data.best||null;
+      _w.onmessage=function(ev){clearTimeout(_botTimeout);_w.onmessage=null;let best=ev.data&&ev.data.best||null;
     if(!best){
       // Fallback: synchronous with max level 2 (no 3-ply minimax — avoids main thread freeze)
       const _savedKl=kiLevel;if(kiLevel>2)kiLevel=2;
-      const _fb=kiPickBestMove(board,aiPlayer);
+      best=kiPickBestMove(board,aiPlayer);
       kiLevel=_savedKl;
-      if(!_fb){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
-      best=_fb;
     }
     // Preview word — guard against null best
     if(!best||!best.push){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
