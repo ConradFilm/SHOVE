@@ -402,11 +402,13 @@ function kiPickBestMove(b,player){
     return pool[Math.floor(Math.random()*pool.length)].move;
   }
 
-  // Great: full 1-ply with jumps (existing logic)
+  // Great: prefer word moves, pick best by score
   if(kiLevel===2){
     const moves=evalMoves(b,player,bSet,20);
     if(!moves.length)return null;
-    return moves.reduce((a,c)=>c.score>a.score?c:a,moves[0]).move;
+    const wordMoves=moves.filter(m=>m.move.word);
+    const pool=wordMoves.length>0?wordMoves:moves;
+    return pool.reduce((a,c)=>c.score>a.score?c:a,pool[0]).move;
   }
 
   // Sharp self-defense: composite scoring when has <=10 stones
@@ -455,12 +457,13 @@ function kiPickBestMove(b,player){
     }
   }
 
-  // Sharp: 3-ply minimax
-  // Ply 1: my 12 moves (with jumps)
+  // Sharp: 3-ply minimax — prefer word-forming candidates
   const botMoves=evalMoves(b,player,bSet,20);
   if(!botMoves.length)return null;
   botMoves.sort((a,c)=>c.score-a.score);
-  const candidates=botMoves.slice(0,Math.min(12,botMoves.length));
+  const wordCands=botMoves.filter(m=>m.move.word);
+  const candPool=wordCands.length>0?wordCands:botMoves;
+  const candidates=candPool.slice(0,Math.min(12,candPool.length));
 
   let bestMove=null,bestNet=-999999;
   for(const cand of candidates){
@@ -1354,11 +1357,13 @@ function kiPickBestMove(b,player){
     return pool[Math.floor(Math.random()*pool.length)].move;
   }
 
-  // Great: full 1-ply with jumps (existing logic)
+  // Great: prefer word moves, pick best by score
   if(kiLevel===2){
     const moves=evalMoves(b,player,bSet,20);
     if(!moves.length)return null;
-    return moves.reduce((a,c)=>c.score>a.score?c:a,moves[0]).move;
+    const wordMoves=moves.filter(m=>m.move.word);
+    const pool=wordMoves.length>0?wordMoves:moves;
+    return pool.reduce((a,c)=>c.score>a.score?c:a,pool[0]).move;
   }
 
   // Sharp self-defense: composite scoring when has <=10 stones
@@ -1407,12 +1412,13 @@ function kiPickBestMove(b,player){
     }
   }
 
-  // Sharp: 3-ply minimax
-  // Ply 1: my 12 moves (with jumps)
+  // Sharp: 3-ply minimax — prefer word-forming candidates
   const botMoves=evalMoves(b,player,bSet,20);
   if(!botMoves.length)return null;
   botMoves.sort((a,c)=>c.score-a.score);
-  const candidates=botMoves.slice(0,Math.min(12,botMoves.length));
+  const wordCands=botMoves.filter(m=>m.move.word);
+  const candPool=wordCands.length>0?wordCands:botMoves;
+  const candidates=candPool.slice(0,Math.min(12,candPool.length));
 
   let bestMove=null,bestNet=-999999;
   for(const cand of candidates){
@@ -1749,7 +1755,12 @@ function humanAITurn(){
     const _w=_getWorker();
     if(_w){
       _w.postMessage({board:JSON.parse(JSON.stringify(board)),player:aiPlayer,kl:kiLevel,mn:moveNum});
-      _w.onmessage=function(ev){const best=ev.data&&ev.data.best||null;
+      // Timeout: if worker doesn't respond in 6s, trigger fallback via null message
+      const _botTimeout=setTimeout(()=>{
+        if(_w.onmessage)_w.onmessage({data:{best:null}});
+      },6000);
+      _w.onerror=function(){clearTimeout(_botTimeout);_workerFailed=true;_aiWorker=null;if(_w.onmessage)_w.onmessage({data:{best:null}});};
+      _w.onmessage=function(ev){clearTimeout(_botTimeout);const best=ev.data&&ev.data.best||null;
     if(!best){
       // Fallback: try synchronous
       const _fb=kiPickBestMove(board,aiPlayer);
