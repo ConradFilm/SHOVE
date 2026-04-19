@@ -2521,11 +2521,75 @@ function _applyZoom(){
 
 
 // ── BUCHSTABENMEER HINTERGRUND ──
+// Primary: OffscreenCanvas in Worker (smooth regardless of main-thread load)
+// Fallback: Main-thread rAF loop (iOS < 16.4, older browsers)
 (function(){
   const cv=document.getElementById('seaCanvas');
   if(!cv)return;
-  const cx=cv.getContext('2d');
   const CHARS='ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ';
+
+  // Feature-detect: OffscreenCanvas + transferControlToOffscreen
+  const canUseOffscreen = typeof cv.transferControlToOffscreen === 'function'
+                       && typeof Worker !== 'undefined'
+                       && typeof OffscreenCanvas !== 'undefined';
+
+  if(canUseOffscreen){
+    try{
+      const workerCode = `
+        const CHARS='${CHARS}';
+        let drops=[],cv,cx;
+        function mkDrop(w,h){
+          const isCyan=Math.random()<.7;
+          const col=isCyan
+            ?'rgba('+(40+Math.random()*50|0)+','+(160+Math.random()*80|0)+','+(190+Math.random()*65|0)+',1)'
+            :'rgba('+(190+Math.random()*65|0)+','+(100+Math.random()*60|0)+','+(20+Math.random()*30|0)+',1)';
+          return{ch:CHARS[Math.floor(Math.random()*CHARS.length)],
+            x:Math.random()*w,y:Math.random()*h,
+            sz:10+Math.random()*38,op:0.04+Math.random()*0.18,
+            vx:(Math.random()-.5)*.22,vy:-.02-.09*Math.random(),
+            r:(Math.random()-.5)*.45,vr:(Math.random()-.5)*.001,col};
+        }
+        function drawSea(){
+          if(!cv||!cx)return;
+          cx.clearRect(0,0,cv.width,cv.height);
+          for(const d of drops){
+            cx.save();cx.translate(d.x,d.y);cx.rotate(d.r);
+            cx.globalAlpha=Math.max(0,d.op);
+            cx.font='900 '+d.sz+'px "Libre Franklin","Georgia",serif';
+            cx.fillStyle=d.col;
+            cx.fillText(d.ch,0,0);
+            cx.restore();
+            d.x+=d.vx;d.y+=d.vy;d.r+=d.vr;
+            if(d.y<-60){d.y=cv.height+20;d.x=Math.random()*cv.width}
+            if(d.x<-60)d.x=cv.width+20;
+            if(d.x>cv.width+60)d.x=-20;
+          }
+          requestAnimationFrame(drawSea);
+        }
+        self.onmessage=function(e){
+          if(e.data.type==='init'){
+            cv=e.data.canvas;cx=cv.getContext('2d');
+            cv.width=e.data.w;cv.height=e.data.h;
+            drops=[];for(let i=0;i<80;i++)drops.push(mkDrop(cv.width,cv.height));
+            drawSea();
+          }else if(e.data.type==='resize'){
+            cv.width=e.data.w;cv.height=e.data.h;
+          }
+        };
+      `;
+      const blob=new Blob([workerCode],{type:'application/javascript'});
+      const worker=new Worker(URL.createObjectURL(blob));
+      const off=cv.transferControlToOffscreen();
+      worker.postMessage({type:'init',canvas:off,w:innerWidth,h:innerHeight},[off]);
+      window.addEventListener('resize',()=>{
+        worker.postMessage({type:'resize',w:innerWidth,h:innerHeight});
+      });
+      return;// success — skip fallback
+    }catch(err){/* fall through to main-thread version */}
+  }
+
+  // ── FALLBACK: main-thread rAF loop (unchanged from original) ──
+  const cx=cv.getContext('2d');
   let drops=[];
   function resize(){cv.width=innerWidth;cv.height=innerHeight}
   resize();window.addEventListener('resize',resize);
