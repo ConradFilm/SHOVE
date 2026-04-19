@@ -50,7 +50,7 @@ body{min-height:100dvh;background:linear-gradient(160deg,#0a1628,#0d2137 40%,#0f
 .tile.p2{background:#9b6ab5;border-color:#7a4a94;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
 .tile.active-sel{box-shadow:0 0 0 3px #fff,0 0 0 5px #e07820,0 0 20px rgba(224,120,32,.8)!important;transform:scale(1.12);z-index:10;filter:brightness(1.15)}
 .active-jumped{box-shadow:0 0 0 3px #fff,0 0 0 5px #93c5fd,0 0 20px rgba(147,197,253,.8)!important;transform:scale(1.12);z-index:10;filter:brightness(1.15)}
-.tile.returned{animation:stoneReturn 1.1s cubic-bezier(0,.4,.25,1) forwards;box-shadow:0 0 22px 8px rgba(255,200,60,.6),0 0 8px 2px rgba(255,230,100,.4),0 -4px 14px rgba(255,180,30,.3)}
+.tile.returned{animation:stoneReturn 1.6s cubic-bezier(.2,.5,.3,1) forwards;box-shadow:0 0 22px 8px rgba(255,200,60,.6),0 0 8px 2px rgba(255,230,100,.4),0 -4px 14px rgba(255,180,30,.3)}
 .cell.h-sel{animation:pulseSel .9s ease-in-out infinite;border-color:rgba(245,158,11,1)!important;background:rgba(245,158,11,.12)!important}
 .cell.h-free{animation:pulseJump 1.4s ease-in-out infinite;cursor:pointer}
 .cell.h-free:hover{background:rgba(96,165,250,.25)!important;border-color:rgba(96,165,250,.7)!important}
@@ -581,6 +581,7 @@ const DIRS=[{dx:1,dy:0,n:"→"},{dx:-1,dy:0,n:"←"},{dx:0,dy:1,n:"↓"},{dx:0,d
 let board={},turn=P1,humanPlayer=P1,aiPlayer=P2,humanStartsGame=true;
 let simPhase="intro",kiLevel=2,playerName="";
 let history=[],comment="",commentCls="",snapBot=null,snapHuman=null,backAvailable=false,lastCompleted=null;
+let _lastCommentSig="";// track last rendered comment signature — re-trigger fade-in only on change
 let wordHLMap={},moveNum=0,gameEnding=false,timer=null;
 let hPhase="idle",hSel=null,hDest=null,hJumpDone=false,kiSelPos=null,pendingNextTurn=null,kiWordHL={},activeWordBoxes=[],wordBoxCells=new Set(),activeWordKeys=new Set();
 let wordBoxKills=0,wordBoxKillColor='#9b6ab5',wordBoxBadgeShown=false;
@@ -647,7 +648,7 @@ function renderMiniBoard(board, humanPlayer, hiddenWord) {
     const aw=findAllWords(board);
     for(const w of aw) if(w.word===hiddenWord) for(const c of w.cells) wordCells.add(c);
   } catch(e){}
-  let h='<div style="display:inline-grid;grid-template-columns:repeat('+sz+','+cs+'px);gap:'+g+'px;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.15));padding:6px;border-radius:10px;margin-top:12px;margin-bottom:6px;transform:perspective(700px) rotateX(14deg);transform-origin:center 85%;box-shadow:0 14px 24px rgba(0,0,0,.5),0 4px 8px rgba(0,0,0,.3)">';
+  let h='<div style="display:inline-grid;grid-template-columns:repeat('+sz+','+cs+'px);gap:'+g+'px;background:rgba(0,0,0,.3);padding:4px;border-radius:6px;margin-top:6px">';
   for(let y=0;y<sz;y++) for(let x=0;x<sz;x++){
     const k=K(x,y);const tile=board[k];
     const isW=wordCells.has(k);
@@ -1045,12 +1046,12 @@ function returnStonesAnimated(player,count,onDone,forbiddenKeys){
       if(!_stonesReturning)return;
       board[k]={owner:player,ch:_slotCh};
       returnedKeys=new Set([k]);render();
-      _returnTimers.push(setTimeout(()=>{returnedKeys.delete(k);},1200));
+      _returnTimers.push(setTimeout(()=>{returnedKeys.delete(k);},1700));
       if(i===actual-1)_returnTimers.push(setTimeout(()=>{
         returnedKeys=new Set();_stonesReturning=false;
         if(onDone)onDone(actual);
-      },900));
-    },i*450+300));
+      },1200));
+    },i*600+400));
   }
   return actual;
 }
@@ -1725,6 +1726,9 @@ function humanDoPush(push){
         _breathing=false;
         // 4 breaths done — board still highlighted
         const z=document.getElementById("wordZoneMob");if(z)z.innerHTML="";
+        // Transition to return-ready comment (symmetric to bot flow) — stays stable during stone return
+        comment=`<span style="color:#93c5fd">Du gewinnst ${kills} Bstb..</span>`;
+        commentCls="human";
         // wordHLMap stays — board letters still highlighted!
         // Stone return — same as flow
         wordHLMap={};// keep word box during return
@@ -2419,7 +2423,7 @@ function render(){
         <div class="stone-lbl">${aiPlayer===P1?"ORANGE":"VIOLETT"}</div>
       </div>
     </div>
-    <div class="comment-bar ${commentCls}"><span id="commentText" style="display:inline-block;animation:commentFade .4s ease-out">${comment||"&nbsp;"}</span></div>
+    <div class="comment-bar ${commentCls}"><span id="commentText" style="display:inline-block">${comment||"&nbsp;"}</span></div>
     <div style="width:${vpW}px;overflow:visible;position:relative;height:${Math.round((G*(CELL+GAP))*sc3+32)}px">
       <div id="boardInner" style="transform-origin:top center;transform:scale(${sc3});position:absolute;top:14px;left:50%;translate:-50% 0">
         <div style="position:relative">${bHtml}</div>
@@ -2441,9 +2445,14 @@ function render(){
   mc.querySelector('#btnPlay').style.opacity=_canPlay?'1':'0.25';
   mc.querySelector('#btnPlay').style.pointerEvents=_canPlay?'auto':'none';
   mc.querySelector('#btnPlay').textContent='▶ WEITER';
+  const _sig=comment+"|"+commentCls;
+  const _commentChanged=_sig!==_lastCommentSig;
+  _lastCommentSig=_sig;
   requestAnimationFrame(()=>{
-    const span=document.getElementById('commentText');
-    if(span){span.style.animation='none';void span.offsetWidth;span.style.animation='commentFade .4s ease-out';}
+    if(_commentChanged){
+      const span=document.getElementById('commentText');
+      if(span){span.style.animation='none';void span.offsetWidth;span.style.animation='commentFade .4s ease-out';}
+    }
     _applyZoom();
   });
 }
