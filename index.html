@@ -343,7 +343,7 @@ function evalMoves(b,player,bSet,maxJumpTargets){
   return results;
 }
 
-function kiPickBestMove(b,player,sac){
+function kiPickBestMove(b,player,sac,humanKills){
   const opp=player===P1?P2:P1;
   const beforeWords=findAllWords(b);
   const bSet=new Set(beforeWords.map(wordKey));
@@ -430,21 +430,23 @@ function kiPickBestMove(b,player,sac){
         }
         return max;
       }
-      // Scale aggressiveness: the fewer stones, the more kills matter vs words
+      // Sharp-Optimum: kill-dominant weights to counter human sacrifice grind
       const bothLow=myCount2<=12&&oppCount2b<=12;
-      const killW=bothLow?25:12;
-      const wordW=bothLow?15:30;
-      const retW=bothLow?30:40;
-      const expW=bothLow?12:9;
+      const killW=bothLow?40:30;// netto-Kills dominieren (war 25/12)
+      const wordW=bothLow?10:15;// Wort nur noch leichter Bonus (war 15/30)
+      const retW=bothLow?35:35; // Rückkehr konstant belohnt (war 30/40)
+      const expW=bothLow?20:18; // Exposure härter bestraft (war 12/9)
+      const hk=humanKills||0;   // human kills last turn — for kadenz matching
       const scored=allM.map(m=>{
         const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
         const ownLost=m.move.result.removed.filter(x=>x.owner===player).length;
         const hasWord=m.move.word?1:0;
         const returns=hasWord?kills:0;
         const exposure=oppMaxKillsSD(m.board,opp);
-        // Penalise own-stone loss more heavily in endgame
         const netKills=kills-ownLost;// positive = good trade, negative = bad trade
-        const sdScore = returns*retW + hasWord*wordW + netKills*killW - exposure*expW;
+        // Kadenz-Bonus: match or exceed human's kill rate when they played aggressively
+        const kadenz=hk>=2?(kills>=hk?30:-25):0;
+        const sdScore = returns*retW + hasWord*wordW + netKills*killW - exposure*expW + kadenz;
         return {m, sdScore};
       });
       scored.sort((a,b)=>b.sdScore-a.sdScore);
@@ -513,10 +515,10 @@ function kiPickBestMove(b,player,sac){
 
 // ═══ BOARD REVEAL ═══
 self.onmessage=function(e){
-  const{board,player,kl,mn,sac}=e.data;
+  const{board,player,kl,mn,sac,hk}=e.data;
   if(kl!==undefined)kiLevel=kl;
   _moveNum=mn||0;
-  try{const best=kiPickBestMove(board,player,sac||false);self.postMessage({best});}
+  try{const best=kiPickBestMove(board,player,sac||false,hk||0);self.postMessage({best});}
   catch(err){self.postMessage({best:null});}
 };`],{type:'application/javascript'});
 const _workerURL=URL.createObjectURL(_workerBlob);
@@ -599,6 +601,7 @@ let _hiddenWord=null;// word hidden by findSmartReturnSlots for current turn
 let _gameWinner=null;// P1 or P2, by checkGameEnd
 let _hiddenBoard=null;// board state when hidden word found
 let _humanSacrificed=false;// true when human lost own stones last turn — Sharp forced into defense
+let _lastHumanKills=0;// kills scored by human last turn — for Sharp kadenz matching
 let _pendingConfirmPush=null;
 let currentBoardDef=null,revealBoard={},revealOwners={};let _currentBoardIndex=1;
 let revealOrder=[],revealProgress=0,revealDone=false,revealTimer=null;
@@ -1315,7 +1318,7 @@ function evalMoves(b,player,bSet,maxJumpTargets){
   return results;
 }
 
-function kiPickBestMove(b,player,sac){
+function kiPickBestMove(b,player,sac,humanKills){
   const opp=player===P1?P2:P1;
   const beforeWords=findAllWords(b);
   const bSet=new Set(beforeWords.map(wordKey));
@@ -1402,21 +1405,23 @@ function kiPickBestMove(b,player,sac){
         }
         return max;
       }
-      // Scale aggressiveness: the fewer stones, the more kills matter vs words
+      // Sharp-Optimum: kill-dominant weights to counter human sacrifice grind
       const bothLow=myCount2<=12&&oppCount2b<=12;
-      const killW=bothLow?25:12;
-      const wordW=bothLow?15:30;
-      const retW=bothLow?30:40;
-      const expW=bothLow?12:9;
+      const killW=bothLow?40:30;// netto-Kills dominieren (war 25/12)
+      const wordW=bothLow?10:15;// Wort nur noch leichter Bonus (war 15/30)
+      const retW=bothLow?35:35; // Rückkehr konstant belohnt (war 30/40)
+      const expW=bothLow?20:18; // Exposure härter bestraft (war 12/9)
+      const hk=humanKills||0;   // human kills last turn — for kadenz matching
       const scored=allM.map(m=>{
         const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
         const ownLost=m.move.result.removed.filter(x=>x.owner===player).length;
         const hasWord=m.move.word?1:0;
         const returns=hasWord?kills:0;
         const exposure=oppMaxKillsSD(m.board,opp);
-        // Penalise own-stone loss more heavily in endgame
         const netKills=kills-ownLost;// positive = good trade, negative = bad trade
-        const sdScore = returns*retW + hasWord*wordW + netKills*killW - exposure*expW;
+        // Kadenz-Bonus: match or exceed human's kill rate when they played aggressively
+        const kadenz=hk>=2?(kills>=hk?30:-25):0;
+        const sdScore = returns*retW + hasWord*wordW + netKills*killW - exposure*expW + kadenz;
         return {m, sdScore};
       });
       scored.sort((a,b)=>b.sdScore-a.sdScore);
@@ -1619,6 +1624,8 @@ function humanPushExact(idx){
 function humanDoPush(push){
   // H3: detect sacrifice — if human lost own stones this push, next bot turn is forced into defense
   _humanSacrificed=push.result.removed.some(x=>x.owner===humanPlayer);
+  // Kadenz: track kill count this turn so Sharp can match the pace next turn
+  _lastHumanKills=push.result.removed.filter(x=>x.owner!==humanPlayer).length;
   // Cancel any still-running stone returns from previous turn
   _stonesReturning=false;
   _returnTimers.forEach(t=>clearTimeout(t));_returnTimers=[];
@@ -1806,7 +1813,7 @@ function humanAITurn(){
   timer=setTimeout(()=>{
     const _w=_getWorker();
     if(_w){
-      _w.postMessage({board:JSON.parse(JSON.stringify(board)),player:aiPlayer,kl:kiLevel,mn:moveNum,sac:_humanSacrificed});_humanSacrificed=false;
+      _w.postMessage({board:JSON.parse(JSON.stringify(board)),player:aiPlayer,kl:kiLevel,mn:moveNum,sac:_humanSacrificed,hk:_lastHumanKills});_humanSacrificed=false;
       // Timeout: if worker doesn't respond in 6s, trigger fallback via null message
       const _botTimeout=setTimeout(()=>{
         if(_w.onmessage)_w.onmessage({data:{best:null}});
@@ -1816,7 +1823,7 @@ function humanAITurn(){
     if(!best){
       // Fallback: synchronous with max level 2 (no 3-ply minimax — avoids main thread freeze)
       const _savedKl=kiLevel;if(kiLevel>2)kiLevel=2;
-      best=kiPickBestMove(board,aiPlayer,_humanSacrificed);_humanSacrificed=false;
+      best=kiPickBestMove(board,aiPlayer,_humanSacrificed,_lastHumanKills);_humanSacrificed=false;
       kiLevel=_savedKl;
     }
     // Preview word — guard against null best
