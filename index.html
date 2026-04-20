@@ -744,7 +744,7 @@ function renderGameover(){
     <div style="width:100%;max-width:340px;background:rgba(255,255,255,.05);border:1px solid rgba(245,158,11,.25);border-radius:12px;padding:12px 14px;margin-bottom:12px">
       <div style="font-size:9px;color:#f59e0b;letter-spacing:2px;font-weight:700;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)">AUSWERTUNG</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:10px;text-align:center">
-        <div></div><div style="color:#e07820;font-weight:700">DU</div><div style="color:#9b6ab5;font-weight:700">BOT</div>
+        <div></div><div style="color:${humanPlayer===P1?'#e07820':'#9b6ab5'};font-weight:700">DU</div><div style="color:${humanPlayer===P1?'#9b6ab5':'#e07820'};font-weight:700">BOT</div>
         <div style="color:rgba(255,255,255,.5);text-align:left">Eliminiert</div>
         <div style="color:rgba(255,255,255,.85);font-weight:700">${myElim}</div>
         <div style="color:rgba(255,255,255,.85);font-weight:700">${aiElim}</div>
@@ -2252,11 +2252,11 @@ function render(){
       </div>
       <div style="margin-top:12px;font-size:10px;color:rgba(255,255,255,.5);letter-spacing:1px">Wer fängt an?</div>
       <div style="display:flex;gap:16px;margin-top:10px">
-        <div onclick="chooseStarter(true)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 22px;border-radius:14px;border:2px solid rgba(245,158,11,.35);background:rgba(245,158,11,.08)">
-          <div style="font-size:20px">⚔</div><div style="font-size:11px;font-weight:900;color:#f59e0b;letter-spacing:1px">ICH BEGINNE</div>
+        <div onclick="chooseStarter(true)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 22px;border-radius:14px;border:2px solid rgba(245,158,11,.35);background:rgba(245,158,11,.08)">
+          <div style="font-family:'Libre Franklin',sans-serif;font-size:20px;font-weight:800;color:#f59e0b;letter-spacing:3px">ICH</div><div style="font-family:'Libre Franklin',sans-serif;font-size:11px;font-weight:900;color:#f59e0b;letter-spacing:1px">BEGINNE</div>
         </div>
-        <div onclick="chooseStarter(false)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 22px;border-radius:14px;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)">
-          <div style="font-size:20px">🤖</div><div style="font-size:11px;font-weight:900;color:rgba(255,255,255,.7);letter-spacing:1px">BOT BEGINNT</div>
+        <div onclick="chooseStarter(false)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 22px;border-radius:14px;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)">
+          <div style="font-family:'Libre Franklin',sans-serif;font-size:20px;font-weight:800;color:#fff;letter-spacing:3px">BOT</div><div style="font-family:'Libre Franklin',sans-serif;font-size:11px;font-weight:900;color:rgba(255,255,255,.85);letter-spacing:1px">BEGINNT</div>
         </div>
       </div>`:`<div style="margin-top:16px;font-size:10px;color:rgba(255,255,255,.3);letter-spacing:1px">Brett wird geladen…</div>`}
     </div>`;
