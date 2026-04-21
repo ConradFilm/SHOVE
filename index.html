@@ -129,6 +129,7 @@ const P1=1,P2=2,G=7,CELL=42,GAP=2;
 const DIRS=[{dx:1,dy:0,n:"→"},{dx:-1,dy:0,n:"←"},{dx:0,dy:1,n:"↓"},{dx:0,dy:-1,n:"↑"}];
 let kiLevel=2;
 let _moveNum=0;
+let _botMoveCount=0;
 function K(x,y){return x+","+y;}
 function PK(k){const[x,y]=k.split(",").map(Number);return{x,y};}
 function cnt(b,p){return Object.values(b).filter(s=>s&&s.owner===p).length;}
@@ -349,8 +350,12 @@ function kiPickBestMove(b,player,sac,humanKills){
   const bSet=new Set(beforeWords.map(wordKey));
 
   // FIRST BOT MOVE (all levels): guarantee a word — push + limited jumps (max 6 targets)
+  // Gated by _botMoveCount — fires only on the bot's very first move per game.
+  // DEBUG LOG: logs the value the bot sees — so stale _moveNum bugs can be diagnosed via F12 console.
   const _mn=typeof _moveNum!=='undefined'?_moveNum:moveNum;
-  if(_mn<=1){
+  const _bmc=typeof _botMoveCount!=='undefined'?_botMoveCount:0;
+  if(typeof console!=='undefined')console.log('[SHOVE] bot call: _moveNum='+_mn+' _botMoveCount='+_bmc+' firstMoveGate='+(_bmc===0));
+  if(_bmc===0){
     const myT=[];for(const k in b)if(b[k]&&b[k].owner===player)myT.push(PK(k));
     const emp1=[];for(let y=0;y<G;y++)for(let x=0;x<G;x++)if(!b[K(x,y)])emp1.push({x,y});
     let best1=null,bestK1=-1;
@@ -515,9 +520,10 @@ function kiPickBestMove(b,player,sac,humanKills){
 
 // ═══ BOARD REVEAL ═══
 self.onmessage=function(e){
-  const{board,player,kl,mn,sac,hk}=e.data;
+  const{board,player,kl,mn,bm,sac,hk}=e.data;
   if(kl!==undefined)kiLevel=kl;
   _moveNum=mn||0;
+  _botMoveCount=bm||0;
   try{const best=kiPickBestMove(board,player,sac||false,hk||0);self.postMessage({best});}
   catch(err){self.postMessage({best:null});}
 };`],{type:'application/javascript'});
@@ -585,6 +591,7 @@ let simPhase="intro",kiLevel=2,playerName="";
 let history=[],comment="",commentCls="",snapBot=null,snapHuman=null,backAvailable=false,lastCompleted=null;
 let _lastCommentSig="";// track last rendered comment signature — re-trigger fade-in only on change
 let wordHLMap={},moveNum=0,gameEnding=false,timer=null;
+let _botMoveCount=0;// counts bot's own moves per game — resets in startGame, incremented after each bot push
 let hPhase="idle",hSel=null,hDest=null,hJumpDone=false,kiSelPos=null,pendingNextTurn=null,kiWordHL={},activeWordBoxes=[],wordBoxCells=new Set(),activeWordKeys=new Set();
 let wordBoxKills=0,wordBoxKillColor='#9b6ab5',wordBoxBadgeShown=false;
 let returnedKeys=new Set(),prevBoard=null,postPushBoard=null;
@@ -802,7 +809,7 @@ function fullReset(){
   if(revealTimer)clearTimeout(revealTimer);revealTimer=null;
   if(_wordOverlay){_wordOverlay.remove();_wordOverlay=null;}
   board={};turn=P1;history=[];comment="";commentCls="";wordHLMap={};
-  moveNum=0;gameEnding=false;hPhase="idle";hSel=null;hDest=null;hJumpDone=false;kiSelPos=null;
+  moveNum=0;_botMoveCount=0;gameEnding=false;hPhase="idle";hSel=null;hDest=null;hJumpDone=false;kiSelPos=null;
   pendingNextTurn=null;returnedKeys=new Set();prevBoard=null;postPushBoard=null;
   gameStats={p1elim:0,p1words:0,p1ret:0,p2elim:0,p2words:0,p2ret:0,missedMoves:[]};
   const z=document.getElementById("wordZoneMob");if(z)z.innerHTML="";
@@ -1339,8 +1346,12 @@ function kiPickBestMove(b,player,sac,humanKills){
   const bSet=new Set(beforeWords.map(wordKey));
 
   // FIRST BOT MOVE (all levels): guarantee a word — push + limited jumps (max 6 targets)
+  // Gated by _botMoveCount — fires only on the bot's very first move per game.
+  // DEBUG LOG: logs the value the bot sees — so stale _moveNum bugs can be diagnosed via F12 console.
   const _mn=typeof _moveNum!=='undefined'?_moveNum:moveNum;
-  if(_mn<=1){
+  const _bmc=typeof _botMoveCount!=='undefined'?_botMoveCount:0;
+  if(typeof console!=='undefined')console.log('[SHOVE] bot call: _moveNum='+_mn+' _botMoveCount='+_bmc+' firstMoveGate='+(_bmc===0));
+  if(_bmc===0){
     const myT=[];for(const k in b)if(b[k]&&b[k].owner===player)myT.push(PK(k));
     const emp1=[];for(let y=0;y<G;y++)for(let x=0;x<G;x++)if(!b[K(x,y)])emp1.push({x,y});
     let best1=null,bestK1=-1;
@@ -1545,7 +1556,7 @@ function chooseColor(color){
 function startGame(){
   const base=buildStartBoard(currentBoardDef);board={};
   for(const k in base)board[k]={...base[k],owner:revealOwners[k]||P1};
-  moveNum=0;gameEnding=false;wordHLMap={};comment="";commentCls="";
+  moveNum=0;_botMoveCount=0;gameEnding=false;wordHLMap={};comment="";commentCls="";
   history=[];snapBot=null;snapHuman=null;backAvailable=false;lastCompleted=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;returnedKeys=new Set();prevBoard=null;postPushBoard=null;
   gameStats={p1elim:0,p1words:0,p1ret:0,p2elim:0,p2words:0,p2ret:0,missedMoves:[]};
   simPhase="pushing";
@@ -1829,7 +1840,7 @@ function humanAITurn(){
   timer=setTimeout(()=>{
     const _w=_getWorker();
     if(_w){
-      _w.postMessage({board:JSON.parse(JSON.stringify(board)),player:aiPlayer,kl:kiLevel,mn:moveNum,sac:_humanSacrificed,hk:_lastHumanKills});_humanSacrificed=false;
+      _w.postMessage({board:JSON.parse(JSON.stringify(board)),player:aiPlayer,kl:kiLevel,mn:moveNum,bm:_botMoveCount,sac:_humanSacrificed,hk:_lastHumanKills});_humanSacrificed=false;
       // Timeout: if worker doesn't respond in 6s, trigger fallback via null message
       const _botTimeout=setTimeout(()=>{
         if(_w.onmessage)_w.onmessage({data:{best:null}});
@@ -1883,7 +1894,7 @@ function humanAITurn(){
     const doBotPush=()=>{
       pendingNextTurn=null;
       kiWordHL={};// keep word-box visible through push + stone return
-      moveNum++;
+      moveNum++;_botMoveCount++;
       const bw2=findAllWords(board);prevBoard=JSON.parse(JSON.stringify(board));
       animateFall(best.push);kiSelPos=null;render();
       animateSlidePush(best.push,()=>{
@@ -2044,7 +2055,7 @@ function humanAITurn(){
     const doBotPush=()=>{
       pendingNextTurn=null;
       kiWordHL={};// keep word-box visible through push + stone return
-      moveNum++;
+      moveNum++;_botMoveCount++;
       const bw2=findAllWords(board);prevBoard=JSON.parse(JSON.stringify(board));
       animateFall(best.push);kiSelPos=null;render();
       animateSlidePush(best.push,()=>{
