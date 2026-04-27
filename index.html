@@ -44,6 +44,8 @@ body{min-height:100dvh;background:linear-gradient(160deg,#0a1628,#0d2137 40%,#0f
 .title{font-size:48px;font-weight:900;color:#f59e0b;letter-spacing:6px;text-shadow:0 0 30px rgba(245,158,11,.5);animation:glow 3s ease-in-out infinite}
 .title-sm{font-size:22px;font-weight:900;color:#e07820;letter-spacing:3px;text-shadow:0 0 15px rgba(224,120,32,.3)}
 .board{display:inline-grid;padding:12px;background:rgba(0,30,60,.65);border-radius:20px;border:2px solid rgba(255,255,255,.1);box-shadow:0 20px 40px rgba(0,0,0,.45),0 6px 12px rgba(0,0,0,.35);position:relative}
+@keyframes endgamePulse{0%,100%{border-color:rgba(60,180,180,.4)}50%{border-color:rgba(100,220,220,.85)}}
+.board.endgame{animation:endgamePulse 4s ease-in-out infinite}
 .cell{border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;background:rgba(255,255,255,.04);border:2px solid rgba(255,255,255,.06);transition:border-color .15s,background .15s}
 .tile{width:100%;height:100%;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:26px;border:2px solid;transition:all .2s;font-family:'Libre Franklin',sans-serif}
 .tile.p1{background:#e07820;border-color:#b55e0e;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
@@ -2437,7 +2439,8 @@ function render(){
       for(let ry=0;ry<rows;ry++)for(let rx=0;rx<cols;rx++)_wordCells.add(K(minX+rx,minY+ry));
     }
   }
-  let bHtml=`<div class="board" style="grid-template-columns:repeat(${G},${CELL}px);gap:${GAP}px;position:relative">`;
+  const _endgameOn=(cnt(board,P1)<=9||cnt(board,P2)<=9)&&!gameEnding;
+  let bHtml=`<div class="board${_endgameOn?' endgame':''}" style="grid-template-columns:repeat(${G},${CELL}px);gap:${GAP}px;position:relative">`;
   for(let y=0;y<G;y++)for(let x=0;x<G;x++){
     const k=K(x,y),tile=board[k];
     let cellCls="cell";
