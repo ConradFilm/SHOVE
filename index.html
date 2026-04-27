@@ -1731,7 +1731,7 @@ function humanDoPush(push){
   const _beforeWordsSnap=beforeWords;
   const _prevBoardSnap=JSON.parse(JSON.stringify(prevBoard));
   const _pushSnap=push;
-  hSel=null;hDest=null;hPhase="idle";
+  hSel=null;hDest=null;hJumpDone=false;hPhase="idle";
   {const fc2=String.fromCharCode(65+push.x),fr2=push.y+1,tc2=String.fromCharCode(65+push.destX),tr2=push.destY+1;comment=`Zug ${moveNum} — ${fc2}${fr2}→${tc2}${tr2} …`;commentCls="";}
   render();
   animateSlidePush(push,()=>{
