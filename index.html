@@ -702,10 +702,11 @@ function renderGameover(){
     const prev=grouped.length?grouped[grouped.length-1]:null;
     if(prev && prev.hiddenWord && m.hiddenWord && prev.hiddenWord===m.hiddenWord){
       prev.lastMove=m.moveNum;
+      prev.zugCount=(prev.zugCount||1)+1;
       // Keep first board — earliest visibility is most informative
       if(!prev.hiddenBoard && m.hiddenBoard) prev.hiddenBoard=m.hiddenBoard;
     } else {
-      grouped.push({...m, firstMove:m.moveNum, lastMove:m.moveNum});
+      grouped.push({...m, firstMove:m.moveNum, lastMove:m.moveNum, zugCount:1});
     }
   }
   let mirrorHtml="";
@@ -718,7 +719,7 @@ function renderGameover(){
           ?`${COLS[m.jumpFrom.x]}${m.jumpFrom.y+1}→${COLS[m.jumpTo.x]}${m.jumpTo.y+1} then ${m.kiMove.dir}`
           :`${COLS[m.kiMove.x]}${m.kiMove.y+1} ${m.kiMove.dir}`;
       }
-      const zugLabel=m.firstMove===m.lastMove?`Zug ${m.firstMove}`:`Zug ${m.firstMove}–${m.lastMove}`;
+      const zugLabel=m.firstMove===m.lastMove?`Zug ${m.firstMove}`:`Zug ${m.firstMove}–${m.lastMove} · ${m.zugCount} Züge`;
       return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
         <div style="font-size:9px;color:rgba(255,255,255,.7);margin-bottom:4px">${zugLabel}</div>
         ${m.hiddenWord?`
