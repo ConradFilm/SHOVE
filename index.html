@@ -349,6 +349,38 @@ function kiPickBestMove(b,player,sac,humanKills){
   const beforeWords=findAllWords(b);
   const bSet=new Set(beforeWords.map(wordKey));
 
+  // ═══ WIN-CHECK (Variant 3: cat-and-mouse) ═══
+  // Only check if opponent could lose with one push (≤9 stones).
+  // Logic: bot ends the game only if (a) it can also form a word in the same move,
+  // or (b) no word-forming push is available anywhere on the board.
+  // Otherwise the bot keeps playing words, demonstrating its mastery.
+  if(cnt(b,opp)<=9){
+    const _wPushes=getPushMoves(b,player);
+    let _winWithWord=null,_winWithWordKills=0;
+    let _winNoWord=null,_winNoWordKills=0;
+    let _anyWordMoveExists=false;
+    for(const _wp of _wPushes){
+      const _wEnemy=_wp.result.removed.filter(x=>x.owner!==player).length;
+      const _nb=applyPush(b,_wp);
+      const _nw=findAllWords(_nb).filter(w=>!bSet.has(wordKey(w)));
+      const _hasWord=_nw.length>0;
+      if(_hasWord)_anyWordMoveExists=true;
+      const _isWin=cnt(b,opp)-_wEnemy<=3;
+      if(_isWin && _hasWord && _wEnemy>_winWithWordKills){
+        _winWithWordKills=_wEnemy;
+        _winWithWord={push:_wp,jumped:false,result:_wp.result,word:_nw[0]};
+      } else if(_isWin && !_hasWord && _wEnemy>_winNoWordKills){
+        _winNoWordKills=_wEnemy;
+        _winNoWord={push:_wp,jumped:false,result:_wp.result,word:null};
+      }
+    }
+    // (a) Win + word: take it. The game ends with a flourish.
+    if(_winWithWord)return _winWithWord;
+    // (b) Win without word, AND no word-move available anywhere: take the win.
+    if(_winNoWord && !_anyWordMoveExists)return _winNoWord;
+    // Otherwise: fall through to normal logic. Bot keeps playing words.
+  }
+
   // FIRST BOT MOVE (all levels): guarantee a word — push + limited jumps (max 6 targets)
   // Gated by _botMoveCount — fires only on the bot's very first move per game.
   // DEBUG LOG: logs the value the bot sees — so stale _moveNum bugs can be diagnosed via F12 console.
@@ -1344,6 +1376,38 @@ function kiPickBestMove(b,player,sac,humanKills){
   const opp=player===P1?P2:P1;
   const beforeWords=findAllWords(b);
   const bSet=new Set(beforeWords.map(wordKey));
+
+  // ═══ WIN-CHECK (Variant 3: cat-and-mouse) ═══
+  // Only check if opponent could lose with one push (≤9 stones).
+  // Logic: bot ends the game only if (a) it can also form a word in the same move,
+  // or (b) no word-forming push is available anywhere on the board.
+  // Otherwise the bot keeps playing words, demonstrating its mastery.
+  if(cnt(b,opp)<=9){
+    const _wPushes=getPushMoves(b,player);
+    let _winWithWord=null,_winWithWordKills=0;
+    let _winNoWord=null,_winNoWordKills=0;
+    let _anyWordMoveExists=false;
+    for(const _wp of _wPushes){
+      const _wEnemy=_wp.result.removed.filter(x=>x.owner!==player).length;
+      const _nb=applyPush(b,_wp);
+      const _nw=findAllWords(_nb).filter(w=>!bSet.has(wordKey(w)));
+      const _hasWord=_nw.length>0;
+      if(_hasWord)_anyWordMoveExists=true;
+      const _isWin=cnt(b,opp)-_wEnemy<=3;
+      if(_isWin && _hasWord && _wEnemy>_winWithWordKills){
+        _winWithWordKills=_wEnemy;
+        _winWithWord={push:_wp,jumped:false,result:_wp.result,word:_nw[0]};
+      } else if(_isWin && !_hasWord && _wEnemy>_winNoWordKills){
+        _winNoWordKills=_wEnemy;
+        _winNoWord={push:_wp,jumped:false,result:_wp.result,word:null};
+      }
+    }
+    // (a) Win + word: take it. The game ends with a flourish.
+    if(_winWithWord)return _winWithWord;
+    // (b) Win without word, AND no word-move available anywhere: take the win.
+    if(_winNoWord && !_anyWordMoveExists)return _winNoWord;
+    // Otherwise: fall through to normal logic. Bot keeps playing words.
+  }
 
   // FIRST BOT MOVE (all levels): guarantee a word — push + limited jumps (max 6 targets)
   // Gated by _botMoveCount — fires only on the bot's very first move per game.
