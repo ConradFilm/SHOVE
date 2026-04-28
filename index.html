@@ -286,18 +286,15 @@ function kiScore(myCount,oppCount,eliminated,stonesBack,longestWord,oppAfter,isJ
 
 // Evaluate moves for a player on board b, return sorted list of {move,score,board}
 function oppDangerScore(nb,opp,bSet){
-  // Find the longest word the opponent could score from this board
+  // Returns 4 if opponent could form ANY new word with their next push, 0 otherwise.
+  // Callers only check >=4 — word length is irrelevant. Early-return makes this fast on dense boards.
   const oppPushes=getPushMoves(nb,opp);
-  let maxLen=0;
   for(const p of oppPushes){
     const nb2=applyPush(nb,p);
     const nw=findAllWords(nb2).filter(w=>!bSet.has(wordKey(w)));
-    if(nw.length>0){
-      const len=Math.max(...nw.map(w=>w.word.length));
-      if(len>maxLen)maxLen=len;
-    }
+    if(nw.length>0)return 4;
   }
-  return maxLen;
+  return 0;
 }
 
 function evalMoves(b,player,bSet,maxJumpTargets){
@@ -1312,18 +1309,15 @@ function kiScore(myCount,oppCount,eliminated,stonesBack,longestWord,oppAfter,isJ
 
 // Evaluate moves for a player on board b, return sorted list of {move,score,board}
 function oppDangerScore(nb,opp,bSet){
-  // Find the longest word the opponent could score from this board
+  // Returns 4 if opponent could form ANY new word with their next push, 0 otherwise.
+  // Callers only check >=4 — word length is irrelevant. Early-return makes this fast on dense boards.
   const oppPushes=getPushMoves(nb,opp);
-  let maxLen=0;
   for(const p of oppPushes){
     const nb2=applyPush(nb,p);
     const nw=findAllWords(nb2).filter(w=>!bSet.has(wordKey(w)));
-    if(nw.length>0){
-      const len=Math.max(...nw.map(w=>w.word.length));
-      if(len>maxLen)maxLen=len;
-    }
+    if(nw.length>0)return 4;
   }
-  return maxLen;
+  return 0;
 }
 
 function evalMoves(b,player,bSet,maxJumpTargets){
