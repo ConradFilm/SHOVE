@@ -297,6 +297,17 @@ function oppDangerScore(nb,opp,bSet){
   return 0;
 }
 
+// Returns max stones the opponent could remove with their best push (used for exposure penalty in self-defense).
+function oppMaxKills(nb,opp){
+  const pushes=getPushMoves(nb,opp);
+  let max=0;
+  for(const p of pushes){
+    const k=p.result.removed.filter(x=>x.owner!==opp).length;
+    if(k>max)max=k;
+  }
+  return max;
+}
+
 function evalMoves(b,player,bSet,maxJumpTargets){
   const opp=player===P1?P2:P1;
   const myCount=cnt(b,player),oppCount=cnt(b,opp);
@@ -341,6 +352,33 @@ function evalMoves(b,player,bSet,maxJumpTargets){
     }
   }
   return results;
+}
+
+// Self-defense composite scoring — used by all three levels when bot has <=14 stones.
+// Penalizes moves that leave bot stones exposed in rows/columns where a single push could fell many.
+function kiSelfDefense(b,player,opp,bSet,humanKills){
+  const allM=evalMoves(b,player,bSet,20);
+  if(!allM.length)return null;
+  const myC=cnt(b,player),oppC=cnt(b,opp);
+  const bothLow=myC<=12&&oppC<=12;
+  const killW=bothLow?40:30;
+  const wordW=bothLow?10:15;
+  const retW=35;
+  const expW=bothLow?20:18;
+  const hk=humanKills||0;
+  const scored=allM.map(m=>{
+    const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
+    const ownLost=m.move.result.removed.filter(x=>x.owner===player).length;
+    const hasWord=m.move.word?1:0;
+    const returns=hasWord?kills:0;
+    const exposure=oppMaxKills(m.board,opp);
+    const netKills=kills-ownLost;
+    const kadenz=hk>=2?(kills>=hk?30:-25):0;
+    const sdScore=returns*retW+hasWord*wordW+netKills*killW-exposure*expW+kadenz;
+    return {m,sdScore};
+  });
+  scored.sort((a,b)=>b.sdScore-a.sdScore);
+  return scored[0].m.move;
 }
 
 function kiPickBestMove(b,player,sac,humanKills){
@@ -415,6 +453,8 @@ function kiPickBestMove(b,player,sac,humanKills){
 
   // Nice: jumps included but fewer candidates, more randomness
   if(kiLevel===1){
+    // Self-defense kicks in at <=14 stones — Bot starts placing stones smartly to avoid traps
+    if(cnt(b,player)<=14){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const oppCount1=cnt(b,opp);const myCount1=cnt(b,player);
     const inEndgame=oppCount1<=6||myCount1<=8;
     const moves=evalMoves(b,player,bSet,inEndgame?20:8);
@@ -441,6 +481,8 @@ function kiPickBestMove(b,player,sac,humanKills){
 
   // Great: prefer word moves, pick best by score
   if(kiLevel===2){
+    // Self-defense kicks in at <=14 stones — same behavior as Sharp/Nice for endgame consistency
+    if(cnt(b,player)<=14){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const moves=evalMoves(b,player,bSet,20);
     if(!moves.length)return null;
     const wordMoves=moves.filter(m=>m.move.word);
@@ -448,43 +490,12 @@ function kiPickBestMove(b,player,sac,humanKills){
     return pool.reduce((a,c)=>c.score>a.score?c:a,pool[0]).move;
   }
 
-  // Sharp self-defense: composite scoring when has <=14 stones
+  // Sharp self-defense: <=14 stones, OR relatively close to opponent (+2), OR forced after human sacrifice
   const myCount2=cnt(b,player);
   const oppCount2b=cnt(b,opp);
-  if(myCount2<=14 || myCount2<=oppCount2b+2 || sac){// H2: relative threshold · H3: forced on human sacrifice
-    const allM=evalMoves(b,player,bSet,20);
-    if(allM.length){
-      function oppMaxKillsSD(nb,opp){
-        const pushes=getPushMoves(nb,opp);
-        let max=0;
-        for(const p of pushes){
-          const k=p.result.removed.filter(x=>x.owner!==opp).length;
-          if(k>max)max=k;
-        }
-        return max;
-      }
-      // Sharp-Optimum: kill-dominant weights to counter human sacrifice grind
-      const bothLow=myCount2<=12&&oppCount2b<=12;
-      const killW=bothLow?40:30;// netto-Kills dominieren (war 25/12)
-      const wordW=bothLow?10:15;// Wort nur noch leichter Bonus (war 15/30)
-      const retW=bothLow?35:35; // Rückkehr konstant belohnt (war 30/40)
-      const expW=bothLow?20:18; // Exposure härter bestraft (war 12/9)
-      const hk=humanKills||0;   // human kills last turn — for kadenz matching
-      const scored=allM.map(m=>{
-        const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
-        const ownLost=m.move.result.removed.filter(x=>x.owner===player).length;
-        const hasWord=m.move.word?1:0;
-        const returns=hasWord?kills:0;
-        const exposure=oppMaxKillsSD(m.board,opp);
-        const netKills=kills-ownLost;// positive = good trade, negative = bad trade
-        // Kadenz-Bonus: match or exceed human's kill rate when they played aggressively
-        const kadenz=hk>=2?(kills>=hk?30:-25):0;
-        const sdScore = returns*retW + hasWord*wordW + netKills*killW - exposure*expW + kadenz;
-        return {m, sdScore};
-      });
-      scored.sort((a,b)=>b.sdScore-a.sdScore);
-      return scored[0].m.move;
-    }
+  if(myCount2<=14 || myCount2<=oppCount2b+2 || sac){
+    const sd=kiSelfDefense(b,player,opp,bSet,humanKills);
+    if(sd)return sd;
   }
 
   // Sharp endgame override: if opponent has <=6 stones, maximize kills
@@ -1320,6 +1331,17 @@ function oppDangerScore(nb,opp,bSet){
   return 0;
 }
 
+// Returns max stones the opponent could remove with their best push (used for exposure penalty in self-defense).
+function oppMaxKills(nb,opp){
+  const pushes=getPushMoves(nb,opp);
+  let max=0;
+  for(const p of pushes){
+    const k=p.result.removed.filter(x=>x.owner!==opp).length;
+    if(k>max)max=k;
+  }
+  return max;
+}
+
 function evalMoves(b,player,bSet,maxJumpTargets){
   const opp=player===P1?P2:P1;
   const myCount=cnt(b,player),oppCount=cnt(b,opp);
@@ -1364,6 +1386,33 @@ function evalMoves(b,player,bSet,maxJumpTargets){
     }
   }
   return results;
+}
+
+// Self-defense composite scoring — used by all three levels when bot has <=14 stones.
+// Penalizes moves that leave bot stones exposed in rows/columns where a single push could fell many.
+function kiSelfDefense(b,player,opp,bSet,humanKills){
+  const allM=evalMoves(b,player,bSet,20);
+  if(!allM.length)return null;
+  const myC=cnt(b,player),oppC=cnt(b,opp);
+  const bothLow=myC<=12&&oppC<=12;
+  const killW=bothLow?40:30;
+  const wordW=bothLow?10:15;
+  const retW=35;
+  const expW=bothLow?20:18;
+  const hk=humanKills||0;
+  const scored=allM.map(m=>{
+    const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
+    const ownLost=m.move.result.removed.filter(x=>x.owner===player).length;
+    const hasWord=m.move.word?1:0;
+    const returns=hasWord?kills:0;
+    const exposure=oppMaxKills(m.board,opp);
+    const netKills=kills-ownLost;
+    const kadenz=hk>=2?(kills>=hk?30:-25):0;
+    const sdScore=returns*retW+hasWord*wordW+netKills*killW-exposure*expW+kadenz;
+    return {m,sdScore};
+  });
+  scored.sort((a,b)=>b.sdScore-a.sdScore);
+  return scored[0].m.move;
 }
 
 function kiPickBestMove(b,player,sac,humanKills){
@@ -1438,6 +1487,8 @@ function kiPickBestMove(b,player,sac,humanKills){
 
   // Nice: jumps included but fewer candidates, more randomness
   if(kiLevel===1){
+    // Self-defense kicks in at <=14 stones — Bot starts placing stones smartly to avoid traps
+    if(cnt(b,player)<=14){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const oppCount1=cnt(b,opp);const myCount1=cnt(b,player);
     const inEndgame=oppCount1<=6||myCount1<=8;
     const moves=evalMoves(b,player,bSet,inEndgame?20:8);
@@ -1464,6 +1515,8 @@ function kiPickBestMove(b,player,sac,humanKills){
 
   // Great: prefer word moves, pick best by score
   if(kiLevel===2){
+    // Self-defense kicks in at <=14 stones — same behavior as Sharp/Nice for endgame consistency
+    if(cnt(b,player)<=14){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const moves=evalMoves(b,player,bSet,20);
     if(!moves.length)return null;
     const wordMoves=moves.filter(m=>m.move.word);
@@ -1471,43 +1524,12 @@ function kiPickBestMove(b,player,sac,humanKills){
     return pool.reduce((a,c)=>c.score>a.score?c:a,pool[0]).move;
   }
 
-  // Sharp self-defense: composite scoring when has <=14 stones
+  // Sharp self-defense: <=14 stones, OR relatively close to opponent (+2), OR forced after human sacrifice
   const myCount2=cnt(b,player);
   const oppCount2b=cnt(b,opp);
-  if(myCount2<=14 || myCount2<=oppCount2b+2 || sac){// H2: relative threshold · H3: forced on human sacrifice
-    const allM=evalMoves(b,player,bSet,20);
-    if(allM.length){
-      function oppMaxKillsSD(nb,opp){
-        const pushes=getPushMoves(nb,opp);
-        let max=0;
-        for(const p of pushes){
-          const k=p.result.removed.filter(x=>x.owner!==opp).length;
-          if(k>max)max=k;
-        }
-        return max;
-      }
-      // Sharp-Optimum: kill-dominant weights to counter human sacrifice grind
-      const bothLow=myCount2<=12&&oppCount2b<=12;
-      const killW=bothLow?40:30;// netto-Kills dominieren (war 25/12)
-      const wordW=bothLow?10:15;// Wort nur noch leichter Bonus (war 15/30)
-      const retW=bothLow?35:35; // Rückkehr konstant belohnt (war 30/40)
-      const expW=bothLow?20:18; // Exposure härter bestraft (war 12/9)
-      const hk=humanKills||0;   // human kills last turn — for kadenz matching
-      const scored=allM.map(m=>{
-        const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
-        const ownLost=m.move.result.removed.filter(x=>x.owner===player).length;
-        const hasWord=m.move.word?1:0;
-        const returns=hasWord?kills:0;
-        const exposure=oppMaxKillsSD(m.board,opp);
-        const netKills=kills-ownLost;// positive = good trade, negative = bad trade
-        // Kadenz-Bonus: match or exceed human's kill rate when they played aggressively
-        const kadenz=hk>=2?(kills>=hk?30:-25):0;
-        const sdScore = returns*retW + hasWord*wordW + netKills*killW - exposure*expW + kadenz;
-        return {m, sdScore};
-      });
-      scored.sort((a,b)=>b.sdScore-a.sdScore);
-      return scored[0].m.move;
-    }
+  if(myCount2<=14 || myCount2<=oppCount2b+2 || sac){
+    const sd=kiSelfDefense(b,player,opp,bSet,humanKills);
+    if(sd)return sd;
   }
 
   // Sharp endgame override: if opponent has <=6 stones, maximize kills
