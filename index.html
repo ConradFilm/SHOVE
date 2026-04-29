@@ -2378,16 +2378,16 @@ function render(){
     app.innerHTML=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:48px 8px 20px;animation:slideIn .4s ease-out">
       <div class="title-sm" style="margin-bottom:20px">SHOVE – So geht's</div>
       <div style="max-width:360px;font-size:13px;line-height:1.9;color:rgba(255,255,255,.75)">
-        <p style="margin-bottom:14px">Du spielst auf einem 7×7 Brett mit 48 Buchstaben. <b style="color:#e07820">Orange</b> gegen <b style="color:#9b6ab5">Violett</b>. Ein Spieler entscheidet, wer beginnt. Der andere wählt die Farbe.</p>
-        <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Dein Zug:</b></p>
-        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Ziehe mit einem deiner Buchstaben in eine beliebige Richtung — so weit du willst, auch über leere Felder, und schiebe mindestens einen gegnerischen Buchstaben vom Brett. Du kannst auch zuerst auf ein freies Feld springen und von dort aus ziehen.</p>
-        <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Wörter bilden = Buchstaben gewinnen</b></p>
-        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Bildest du ein neues Wort mit mindestens vier Buchstaben, gewinnst du so viele Buchstaben hinzu, wie du gegnerische vom Brett geschoben hast. Kein neues Wort — kein Gewinn.</p>
-        <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Bevor das Brett dünn wird</b></p>
-        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(100,220,220,.4)">Wenn Wörter selten werden, zählt, wo du deine Buchstaben platzierst. Sonst stellst du dir selbst eine Falle.</p>
-        <p style="margin-bottom:14px"><b style="color:rgba(255,255,255,.9)">Das Spiel ist beendet, wenn ein Spieler nur noch drei Buchstaben hat.</b></p>
+        <p style="margin-bottom:14px">7×7 Brett, 48 Buchstaben, ein leeres Feld. <b style="color:#e07820">Orange</b> gegen <b style="color:#9b6ab5">Violett</b>. Einer entscheidet, wer beginnt — der andere wählt die Farbe.</p>
+        <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Dein Zug.</b></p>
+        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Wähle einen deiner Buchstaben und schiebe ihn beliebig weit — auch über leere Felder — waagrecht oder senkrecht, alles in seiner Reihe oder Spalte rückt mit. Was über den Rand geschoben wird, fällt vom Brett. Statt direkt zu schieben, kannst du mit deinem Buchstaben zuerst auf ein leeres Feld springen und von dort aus schieben.</p>
+        <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Pflicht.</b></p>
+        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Bei jedem Zug muss mindestens ein Buchstabe vom Brett fallen — eigene oder gegnerische.</p>
+        <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Wörter bilden = Buchstaben gewinnen.</b></p>
+        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Bildest du mindestens ein neues Wort mit vier Buchstaben oder mehr, bekommst du genauso viele Buchstaben aufs Brett zurück, wie du gegnerische vom Brett geschoben hast. Kein neues Wort — kein Gewinn.</p>
+        <p style="margin-bottom:14px"><b style="color:rgba(255,255,255,.9)">Spielende.</b> Wer auf drei Buchstaben fällt, hat verloren.</p>
         
-        <p style="margin-top:18px;padding:10px 14px;border-radius:10px;background:rgba(224,120,32,.07);border:1px solid rgba(224,120,32,.35);font-size:13px;line-height:1.7"><b style="color:#e07820;font-size:14px">Der SHOVE Bot.</b> Nach dem Spiel zeigt er dir, welche Wörter du nicht gesehen hast.</p>
+        <p style="margin-top:18px;padding:10px 14px;border-radius:10px;background:rgba(224,120,32,.07);border:1px solid rgba(224,120,32,.35);font-size:13px;line-height:1.7"><b style="color:#e07820;font-size:14px">Der SHOVE Bot.</b> Nach dem Spiel zeigt er dir, welche Wörter du nicht gesehen hast. Dein Auge wird schärfer.</p>
       </div>
       <button class="ctrl-btn gold" onclick="simPhase='words';render()" style="margin-top:28px;padding:12px 36px;font-size:12px;letter-spacing:1px">WEITER →</button>
       <div style="margin-top:16px;font-size:9px;color:rgba(255,255,255,.4)">SHOVE™ · © 2026 Marc Conrad</div>
