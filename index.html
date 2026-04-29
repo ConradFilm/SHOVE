@@ -2001,6 +2001,18 @@ function humanAITurn(){
       best=kiPickBestMove(board,aiPlayer,_humanSacrificed,_lastHumanKills);_humanSacrificed=false;
       kiLevel=_savedKl;
     }
+    // Stale-move guard: worker's `best` was computed on a board snapshot that may no longer
+    // match current `board` (e.g., user hit BACK during bot thinking). Verify the bot's
+    // starting position still has a bot stone — if not, recompute on current board.
+    if(best&&best.push){
+      const _vx=best.jumped?best.jump.fromX:best.push.x,_vy=best.jumped?best.jump.fromY:best.push.y;
+      const _vt=board[K(_vx,_vy)];
+      if(!_vt||_vt.owner!==aiPlayer){
+        const _sk=kiLevel;if(kiLevel>2)kiLevel=2;
+        best=kiPickBestMove(board,aiPlayer,_humanSacrificed,_lastHumanKills);_humanSacrificed=false;
+        kiLevel=_sk;
+      }
+    }
     // Preview word — guard against null best
     if(!best||!best.push){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
     const ch=board[K(best.jumped?best.jump.fromX:best.push.x,best.jumped?best.jump.fromY:best.push.y)]?.ch||"?";
@@ -2680,6 +2692,8 @@ function onBack(){
   _returnTimers.forEach(t=>clearTimeout(t));_returnTimers=[];
   wordBoxKills=0;wordBoxBadgeShown=false;
   if(timer){clearTimeout(timer);timer=null;}
+  // Cancel any pending worker callback — its `best` is computed on a stale board snapshot
+  if(_aiWorker)_aiWorker.onmessage=null;
   pendingNextTurn=null;
   if(_wordOverlay){_wordOverlay.remove();_wordOverlay=null;}
   const wz=document.getElementById("wordZoneMob");if(wz)wz.innerHTML="";
