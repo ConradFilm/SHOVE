@@ -1192,7 +1192,7 @@ function returnStonesAnimated(player,count,onDone,forbiddenKeys){
 // ═══ ANIMATIONS ═══
 function animateFall(push){
   const removed=push.result?.removed||[];if(!removed.length)return;
-  if(window.SHOVEAUDIO) window.SHOVEAUDIO.playFall();
+  // [TEST] hook disabled: if(window.SHOVEAUDIO) window.SHOVEAUDIO.playFall();
   setTimeout(()=>{
     const be=document.querySelector(".board");if(!be)return;
     for(const p of removed){
@@ -1335,7 +1335,7 @@ function getWordCellKeys(){
 }
 function applyWordHL(newWords){
   wordHLMap={};
-  if(newWords.length>0 && window.SHOVEAUDIO) window.SHOVEAUDIO.playWord();
+  // [TEST] hook disabled: if(newWords.length>0 && window.SHOVEAUDIO) window.SHOVEAUDIO.playWord();
   if(!newWords.length){activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;return;}
   const max=Math.max(...newWords.map(w=>w.word.length));
   const winners=newWords.filter(w=>w.word.length===max);
@@ -2383,19 +2383,7 @@ function humanAITurn(){
   },1500+Math.random()*1000);
 }
 function render(){
-  // SHOVE AUDIO: check endgame state
-  if(window.SHOVEAUDIO && window.SHOVEAUDIO.isOn && window.SHOVEAUDIO.isOn()){
-    try {
-      let oCount=0, vCount=0;
-      for(const k in board){
-        if(board[k] && board[k].owner){
-          if(board[k].owner===P1) oCount++;
-          else if(board[k].owner===P2) vCount++;
-        }
-      }
-      if(oCount<=6 || vCount<=6) window.SHOVEAUDIO.activateEndgame();
-    } catch(e){}
-  }
+  // [TEST] SHOVE AUDIO endgame check disabled
 
   const app=document.getElementById("app");if(!app)return;
   const mc=document.getElementById("mainControls");
