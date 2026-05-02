@@ -1192,6 +1192,7 @@ function returnStonesAnimated(player,count,onDone,forbiddenKeys){
 // ═══ ANIMATIONS ═══
 function animateFall(push){
   const removed=push.result?.removed||[];if(!removed.length)return;
+  if(window.SHOVEAUDIO) window.SHOVEAUDIO.playFall();
   setTimeout(()=>{
     const be=document.querySelector(".board");if(!be)return;
     for(const p of removed){
@@ -1334,6 +1335,7 @@ function getWordCellKeys(){
 }
 function applyWordHL(newWords){
   wordHLMap={};
+  if(newWords.length>0 && window.SHOVEAUDIO) window.SHOVEAUDIO.playWord();
   if(!newWords.length){activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;return;}
   const max=Math.max(...newWords.map(w=>w.word.length));
   const winners=newWords.filter(w=>w.word.length===max);
@@ -2381,6 +2383,20 @@ function humanAITurn(){
   },1500+Math.random()*1000);
 }
 function render(){
+  // SHOVE AUDIO: check endgame state
+  if(window.SHOVEAUDIO && window.SHOVEAUDIO.isOn && window.SHOVEAUDIO.isOn()){
+    try {
+      let oCount=0, vCount=0;
+      for(const k in board){
+        if(board[k] && board[k].owner){
+          if(board[k].owner===P1) oCount++;
+          else if(board[k].owner===P2) vCount++;
+        }
+      }
+      if(oCount<=6 || vCount<=6) window.SHOVEAUDIO.activateEndgame();
+    } catch(e){}
+  }
+
   const app=document.getElementById("app");if(!app)return;
   const mc=document.getElementById("mainControls");
   for(const k in board){if(board[k]&&(board[k].ch===undefined||board[k].ch===null)){const{x,y}=PK(k);board[k].ch=letterAt(x,y)||"?";}}
@@ -2883,5 +2899,280 @@ function _applyZoom(){
 
 // ═══ INIT ═══
 fullReset();render();
+
+// =========================================================================
+// SHOVE KLANGWELT — Web Audio Score (Meer + Wellen, Richter/Jóhannsson)
+// Eigenständiges Modul, Default OFF, Toggle über window.SHOVEAUDIO.toggle()
+// Hooks: window.SHOVEAUDIO.playWord(), .playFall(), .activateEndgame()
+// =========================================================================
+(function(){
+  const STATE = {
+    ctx: null,
+    meerGain: null, welleGain: null,
+    on: false, endgame: false,
+    meerVoices: [], welleVoices: [],
+    meerTimer: null, welleTimer: null,
+    meerIdx: 0, welleIdx: 0,
+    meerPlaying: false, wellePlaying: false,
+  };
+  
+  const MEER_CLUSTERS = [
+    [49, 52, 55, 58], [44, 49, 52, 58], [55, 58, 62, 65], [41, 44, 49, 55],
+  ];
+  const WELLE_CHORDS = [
+    { name:'Dm',  notes:[146.83, 174.61, 220.00], duration:10 },
+    { name:'F',   notes:[174.61, 220.00, 261.63], duration:10 },
+    { name:'B♭',  notes:[116.54, 146.83, 174.61], duration:10 },
+    { name:'A',   notes:[110.00, 138.59, 164.81], duration:10 },
+  ];
+  
+  async function ensureCtx(){
+    if(!STATE.ctx){
+      try{ STATE.ctx = new (window.AudioContext||window.webkitAudioContext)(); }
+      catch(e){ return false; }
+      try{
+        const b = STATE.ctx.createBuffer(1,1,22050);
+        const s = STATE.ctx.createBufferSource();
+        s.buffer = b; s.connect(STATE.ctx.destination); s.start(0);
+      }catch(e){}
+    }
+    if(STATE.ctx.state==='suspended'){
+      try{ await STATE.ctx.resume(); }catch(e){}
+    }
+    return true;
+  }
+  
+  function makeReverb(duration, decay){
+    const sr = STATE.ctx.sampleRate;
+    const length = Math.floor(sr*duration);
+    const impulse = STATE.ctx.createBuffer(2, length, sr);
+    for(let ch=0; ch<2; ch++){
+      const data = impulse.getChannelData(ch);
+      for(let i=0; i<length; i++){
+        data[i] = (Math.random()*2-1) * Math.pow(1-i/length, decay);
+      }
+    }
+    return impulse;
+  }
+  
+  function setupChains(){
+    if(STATE.meerGain) return;
+    const ctx = STATE.ctx;
+    
+    STATE.meerGain = ctx.createGain();
+    STATE.meerGain.gain.value = 0.3;
+    const mConv = ctx.createConvolver();
+    mConv.buffer = makeReverb(7.0, 1.3);
+    const mRev = ctx.createGain();
+    mRev.gain.value = 0.7;
+    STATE.meerGain.connect(ctx.destination);
+    STATE.meerGain.connect(mRev);
+    mRev.connect(mConv);
+    mConv.connect(ctx.destination);
+    
+    STATE.welleGain = ctx.createGain();
+    STATE.welleGain.gain.value = 0.42;
+    const wConv = ctx.createConvolver();
+    wConv.buffer = makeReverb(5.0, 2.0);
+    const wRev = ctx.createGain();
+    wRev.gain.value = 0.4;
+    STATE.welleGain.connect(ctx.destination);
+    STATE.welleGain.connect(wRev);
+    wRev.connect(wConv);
+    wConv.connect(ctx.destination);
+  }
+  
+  function meerVoice(freq, gainVal, attack){
+    const ctx = STATE.ctx;
+    const g = ctx.createGain(); g.gain.value=0; g.connect(STATE.meerGain);
+    const osc = ctx.createOscillator(); osc.type='sawtooth'; osc.frequency.value=freq;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.08+Math.random()*0.12;
+    const lfoGain = ctx.createGain(); lfoGain.gain.value = 5+Math.random()*8;
+    lfo.connect(lfoGain); lfoGain.connect(osc.detune);
+    const f = ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value = 200+Math.random()*200; f.Q.value=3;
+    const f2 = ctx.createBiquadFilter(); f2.type='lowpass'; f2.frequency.value=800;
+    osc.connect(f); f.connect(f2); f2.connect(g);
+    osc.start(); lfo.start();
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(gainVal, now+attack);
+    return { gain:g, oscs:[osc,lfo] };
+  }
+  
+  function meerCluster(notes, dur){
+    const newV = [];
+    for(const f of notes) newV.push(meerVoice(f, 0.04+Math.random()*0.03, 4+Math.random()*3));
+    newV.push(meerVoice(notes[0]/2, 0.12, 5));
+    for(const v of newV) STATE.meerVoices.push(v);
+    setTimeout(()=>fadeVoices(newV, 6), Math.max(2000, (dur-6)*1000));
+  }
+  
+  function nextMeer(){
+    if(!STATE.meerPlaying) return;
+    const cluster = MEER_CLUSTERS[STATE.meerIdx];
+    const dur = STATE.endgame ? 10 : 16;
+    meerCluster(cluster, dur);
+    STATE.meerIdx = (STATE.meerIdx+1) % MEER_CLUSTERS.length;
+    STATE.meerTimer = setTimeout(nextMeer, dur*1000);
+  }
+  
+  function welleVoice(freq, gainVal, attack){
+    const ctx = STATE.ctx;
+    const g = ctx.createGain(); g.gain.value=0; g.connect(STATE.welleGain);
+    const detunes=[-7,0,7]; const oscs=[];
+    for(const d of detunes){
+      const osc = ctx.createOscillator(); osc.type='sawtooth';
+      osc.frequency.value=freq; osc.detune.value=d;
+      const f = ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=1400; f.Q.value=0.7;
+      osc.connect(f); f.connect(g); osc.start(); oscs.push(osc);
+    }
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(gainVal, now+attack);
+    return { gain:g, oscs };
+  }
+  
+  function welleChord(chord, dur){
+    const newV = [];
+    newV.push(welleVoice(chord.notes[0]/2, 0.12, 4.5));
+    for(const f of chord.notes) newV.push(welleVoice(f, 0.08, 5.5));
+    for(const v of newV) STATE.welleVoices.push(v);
+    setTimeout(()=>fadeVoices(newV, 5), Math.max(2000, (dur-5)*1000));
+  }
+  
+  function nextWelle(){
+    if(!STATE.wellePlaying) return;
+    const c = WELLE_CHORDS[STATE.welleIdx];
+    const dur = STATE.endgame ? c.duration*0.65 : c.duration;
+    welleChord(c, dur);
+    STATE.welleIdx = (STATE.welleIdx+1) % WELLE_CHORDS.length;
+    STATE.welleTimer = setTimeout(nextWelle, dur*1000);
+  }
+  
+  function fadeVoices(voices, fadeTime){
+    if(!STATE.ctx) return;
+    const now = STATE.ctx.currentTime;
+    for(const v of voices){
+      try{
+        v.gain.gain.cancelScheduledValues(now);
+        v.gain.gain.setValueAtTime(v.gain.gain.value, now);
+        v.gain.gain.linearRampToValueAtTime(0, now+fadeTime);
+        setTimeout(()=>{ for(const o of v.oscs) try{ o.stop(); }catch(e){} }, fadeTime*1000+500);
+      }catch(e){}
+    }
+  }
+  
+  async function toggle(){
+    if(!STATE.on){
+      const ok = await ensureCtx();
+      if(!ok) return false;
+      setupChains();
+      STATE.on = true;
+      STATE.meerPlaying = true;
+      STATE.meerIdx = 0;
+      nextMeer();
+      setTimeout(()=>{
+        STATE.wellePlaying = true;
+        STATE.welleIdx = 0;
+        nextWelle();
+      }, 3000);
+      return true;
+    } else {
+      STATE.on = false;
+      STATE.meerPlaying = false; STATE.wellePlaying = false; STATE.endgame = false;
+      if(STATE.meerTimer) clearTimeout(STATE.meerTimer);
+      if(STATE.welleTimer) clearTimeout(STATE.welleTimer);
+      fadeVoices(STATE.meerVoices, 4);
+      fadeVoices(STATE.welleVoices, 3);
+      STATE.meerVoices = []; STATE.welleVoices = [];
+      return false;
+    }
+  }
+  
+  function activateEndgame(){
+    if(!STATE.on || STATE.endgame) return;
+    STATE.endgame = true;
+  }
+  
+  function playWord(){
+    if(!STATE.on || !STATE.ctx) return;
+    const ctx = STATE.ctx;
+    const now = ctx.currentTime;
+    const freqs = [330, 440, 660, 880];
+    for(let i=0; i<freqs.length; i++){
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freqs[i];
+      const g = ctx.createGain(); g.gain.value = 0;
+      osc.connect(g); g.connect(STATE.welleGain);
+      osc.start(now + i*0.04);
+      g.gain.linearRampToValueAtTime(0.12 / Math.sqrt(i+1), now + 0.06 + i*0.04);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+      osc.stop(now + 1.9);
+    }
+  }
+  
+  function playFall(){
+    if(!STATE.on || !STATE.ctx) return;
+    const ctx = STATE.ctx;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(95, now);
+    osc.frequency.exponentialRampToValueAtTime(28, now + 0.8);
+    const g = ctx.createGain(); g.gain.value = 0;
+    osc.connect(g); g.connect(STATE.meerGain);
+    osc.start(now);
+    g.gain.linearRampToValueAtTime(0.4, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+    osc.stop(now + 1.3);
+    
+    const bs = Math.floor(ctx.sampleRate * 0.5);
+    const nb = ctx.createBuffer(1, bs, ctx.sampleRate);
+    const nd = nb.getChannelData(0);
+    for(let i=0; i<bs; i++) nd[i] = (Math.random()*2-1) * (1 - i/bs);
+    const noise = ctx.createBufferSource(); noise.buffer = nb;
+    const nf = ctx.createBiquadFilter(); nf.type='lowpass'; nf.frequency.value=280;
+    const ng = ctx.createGain(); ng.gain.value=0;
+    noise.connect(nf); nf.connect(ng); ng.connect(STATE.meerGain);
+    noise.start(now);
+    ng.gain.linearRampToValueAtTime(0.12, now + 0.02);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+  }
+  
+  function isOn(){ return STATE.on; }
+  
+  window.SHOVEAUDIO = { toggle, playWord, playFall, activateEndgame, isOn };
+  
+  // Inject audio toggle button — fixed in top-right, dezent
+  function injectToggle(){
+    if(document.getElementById('shoveAudioToggle')) return;
+    const btn = document.createElement('button');
+    btn.id = 'shoveAudioToggle';
+    btn.title = 'Klangwelt an/aus';
+    btn.innerHTML = '♪';
+    btn.style.cssText = 'position:fixed;top:14px;right:14px;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.25);color:rgba(255,255,255,.5);font-size:14px;cursor:pointer;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:inherit;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:all .25s ease;-webkit-tap-highlight-color:transparent;touch-action:manipulation';
+    btn.addEventListener('click', async ()=>{
+      const isOn = await toggle();
+      if(isOn){
+        btn.style.borderColor = '#6dc7c7';
+        btn.style.color = '#6dc7c7';
+        btn.style.background = 'rgba(109,199,199,.12)';
+      } else {
+        btn.style.borderColor = 'rgba(255,255,255,.18)';
+        btn.style.color = 'rgba(255,255,255,.5)';
+        btn.style.background = 'rgba(0,0,0,.25)';
+      }
+    });
+    document.body.appendChild(btn);
+  }
+  
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', injectToggle);
+  } else {
+    injectToggle();
+  }
+})();
+
 </script>
 </body>
