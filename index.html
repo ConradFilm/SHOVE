@@ -15,7 +15,7 @@
 <title>SHOVE</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{min-height:100dvh;background:linear-gradient(160deg,#0a1628,#0d2137 40%,#0f2b46);font-family:Georgia,'Times New Roman',serif;display:flex;flex-direction:column;align-items:center;color:#fff;user-select:none;overflow-x:hidden}
+body{min-height:100dvh;padding-top:60px;background:linear-gradient(160deg,#0a1628,#0d2137 40%,#0f2b46);font-family:Georgia,'Times New Roman',serif;display:flex;flex-direction:column;align-items:center;color:#fff;user-select:none;overflow-x:hidden}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 @keyframes glow{0%,100%{text-shadow:0 0 20px rgba(245,158,11,.4)}50%{text-shadow:0 0 40px rgba(245,158,11,.8)}}
 @keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
@@ -101,7 +101,7 @@ body{min-height:100dvh;background:linear-gradient(160deg,#0a1628,#0d2137 40%,#0f
   <path d="M0,200 C200,100 400,300 700,200 C900,150 1100,250 1200,200 L1200,400 L0,400Z" fill="#0288d1"/>
   <path d="M0,300 C400,250 600,350 1200,280 L1200,400 L0,400Z" fill="#01579b"/>
 </svg>
-<div id="app" style="padding-top:60px;width:100%;display:flex;flex-direction:column;align-items:center"></div>
+<div id="app"></div>
 
 <div class="controls" id="mainControls" style="display:none">
   <button class="ctrl-btn" id="btnBack" onclick="onBack()">◀ ZURÜCK</button>
