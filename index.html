@@ -15,7 +15,7 @@
 <title>SHOVE</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{min-height:100dvh;padding-top:60px;background:linear-gradient(160deg,#0a1628,#0d2137 40%,#0f2b46);font-family:Georgia,'Times New Roman',serif;display:flex;flex-direction:column;align-items:center;color:#fff;user-select:none;overflow-x:hidden}
+body{min-height:100dvh;background:linear-gradient(160deg,#0a1628,#0d2137 40%,#0f2b46);font-family:Georgia,'Times New Roman',serif;display:flex;flex-direction:column;align-items:center;color:#fff;user-select:none;overflow-x:hidden}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 @keyframes glow{0%,100%{text-shadow:0 0 20px rgba(245,158,11,.4)}50%{text-shadow:0 0 40px rgba(245,158,11,.8)}}
 @keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
@@ -2497,7 +2497,7 @@ function render(){
     if(mc)mc.style.display="none";
     app.innerHTML=`<div style="min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:20px">
       <div class="title-sm">DEIN NAME</div>
-      <div style="font-size:11px;color:rgba(255,255,255,.5);letter-spacing:2px;text-align:center;max-width:280px">Dein Nickname Community:<br>Erscheint am Ende Auswertungs-Screen.</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);letter-spacing:2px;text-align:center;max-width:280px">Dein Nickname für die Community — erscheint am Ende im Auswertungs-Screen.</div>
       <input id="nameInput" type="text" maxlength="20" placeholder="Name oder Nickname"
         style="background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.2);border-radius:10px;padding:14px 18px;font-size:16px;color:#fff;font-family:'Libre Franklin',sans-serif;width:100%;max-width:280px;text-align:center;outline:none"
         oninput="playerName=this.value.trim()"
@@ -2746,7 +2746,7 @@ function render(){
   const vpW=Math.min(400,window.innerWidth-16);
   const sc3=Math.min(1,(vpW-28)/(G*(CELL+GAP)+GAP));
   app.innerHTML=`${badge}
-    <div class="stone-bar">
+    <div class="stone-bar" style="margin-top:60px">
       <div class="stone-count ${humanPlayer===P1?"p1c":"p2c"}">
         <div class="stone-lbl">DU</div>
         <div class="stone-num" style="color:${myColor}">${myCount}</div>
