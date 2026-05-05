@@ -1182,6 +1182,7 @@ function returnStonesAnimated(player,count,onDone,forbiddenKeys){
       if(!_stonesReturning)return;
       board[k]={owner:player,ch:_slotCh};
       returnedKeys=new Set([k]);render();
+      if(window.SHOVEAUDIO) window.SHOVEAUDIO.playReturn(i);
       _returnTimers.push(setTimeout(()=>{returnedKeys.delete(k);},1700));
       if(i===actual-1)_returnTimers.push(setTimeout(()=>{
         returnedKeys=new Set();_stonesReturning=false;
@@ -3173,8 +3174,8 @@ fullReset();render();
       STATE.meerPlaying = false; STATE.wellePlaying = false; STATE.endgame = false;
       if(STATE.meerTimer) clearTimeout(STATE.meerTimer);
       if(STATE.welleTimer) clearTimeout(STATE.welleTimer);
-      fadeVoices(STATE.meerVoices, 4);
-      fadeVoices(STATE.welleVoices, 3);
+      fadeVoices(STATE.meerVoices, 1);
+      fadeVoices(STATE.welleVoices, 0.8);
       STATE.meerVoices = []; STATE.welleVoices = [];
       return false;
     }
@@ -3260,9 +3261,34 @@ fullReset();render();
     sub.stop(now + 1.0);
   }
   
+  // Return: short sparkly tone per returning stone
+  // Index 0..n-1, plays a small ascending arpeggio across multiple stones
+  function playReturn(index){
+    if(!STATE.on || !STATE.ctx) return;
+    const ctx = STATE.ctx;
+    const now = ctx.currentTime;
+    // Pitch ascends per stone — C major arpeggio: C5, E5, G5, C6, E6, G6
+    const pitches = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
+    const freq = pitches[index % pitches.length];
+    
+    // Bell-like: stacked sine + slight harmonic
+    for(let h=0; h<2; h++){
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq * (h===0 ? 1 : 2.01); // tiny detune on harmonic
+      const g = ctx.createGain(); g.gain.value = 0;
+      osc.connect(g); g.connect(STATE.welleGain);
+      osc.start(now);
+      const peakGain = h===0 ? 0.14 : 0.05;
+      g.gain.linearRampToValueAtTime(peakGain, now + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+      osc.stop(now + 0.9);
+    }
+  }
+  
   function isOn(){ return STATE.on; }
   
-  window.SHOVEAUDIO = { toggle, playWord, playFall, activateEndgame, isOn };
+  window.SHOVEAUDIO = { toggle, playWord, playFall, playReturn, activateEndgame, isOn };
   
   // SVG icons — speaker on / muted
   const SVG_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
