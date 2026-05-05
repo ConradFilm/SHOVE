@@ -3267,23 +3267,46 @@ fullReset();render();
     if(!STATE.on || !STATE.ctx) return;
     const ctx = STATE.ctx;
     const now = ctx.currentTime;
-    // Pitch ascends per stone — C major arpeggio: C5, E5, G5, C6, E6, G6
-    const pitches = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
-    const freq = pitches[index % pitches.length];
+    // Klangschale — immer derselbe Grundton (kein Glockenspiel-Effekt)
+    const fund = 220;
     
-    // Bell-like: stacked sine + slight harmonic
-    for(let h=0; h<2; h++){
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = freq * (h===0 ? 1 : 2.01); // tiny detune on harmonic
-      const g = ctx.createGain(); g.gain.value = 0;
-      osc.connect(g); g.connect(STATE.welleGain);
-      osc.start(now);
-      const peakGain = h===0 ? 0.14 : 0.05;
-      g.gain.linearRampToValueAtTime(peakGain, now + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
-      osc.stop(now + 0.9);
+    // Singing bowls have inharmonic partials — slightly off from pure octaves
+    // Real bowl ratios: 1.0, 2.79, 5.43
+    const partials = [
+      { f: 1.0,    g: 0.20, decay: 4.0 },   // fundamental, longest
+      { f: 2.79,   g: 0.10, decay: 3.0 },   // 2nd partial — inharmonic
+      { f: 5.43,   g: 0.04, decay: 2.0 },   // 3rd partial — gives sparkle
+    ];
+    const beatingDetune = 1.003;
+    
+    for(const p of partials){
+      // Pair of oscillators with very slight detune for beating effect
+      for(let pair=0; pair<2; pair++){
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = fund * p.f * (pair===0 ? 1 : beatingDetune);
+        const g = ctx.createGain(); g.gain.value = 0;
+        const direct = ctx.createGain(); direct.gain.value = 0.75;
+        osc.connect(g); g.connect(direct); direct.connect(ctx.destination);
+        osc.start(now);
+        // Soft swelling attack — bowl-like (60ms)
+        const peakGain = pair===0 ? p.g : p.g * 0.5;
+        g.gain.linearRampToValueAtTime(peakGain, now + 0.06);
+        g.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+        osc.stop(now + p.decay + 0.1);
+      }
     }
+    
+    // Subtle low rumble for "weight"
+    const sub = ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.value = fund / 2;
+    const sg = ctx.createGain(); sg.gain.value = 0;
+    sub.connect(sg); sg.connect(ctx.destination);
+    sub.start(now);
+    sg.gain.linearRampToValueAtTime(0.06, now + 0.1);
+    sg.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+    sub.stop(now + 2.6);
   }
   
   function isOn(){ return STATE.on; }
