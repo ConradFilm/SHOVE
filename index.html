@@ -1889,7 +1889,20 @@ function humanDoPush(push){
                 jumped:ko.jumped||false,jumpFrom:ko.jumped?{x:ko.jump.fromX,y:ko.jump.fromY}:null,
                 jumpTo:ko.jumped?{x:ko.jump.toX,y:ko.jump.toY}:null});
               // SHOVECHAT: a word WAS possible — retroactively show the lerntipp
-              if(window.SHOVECHAT) window.SHOVECHAT.onPlayerMove({wordsFormed:0, killsCount:kills, longestWord:'', wordPossibleButMissed:true});
+              if(window.SHOVECHAT){
+                let _missedLoc='';
+                if(kw && kw.length){
+                  const _w0=kw.reduce((a,b)=>b.word.length>a.word.length?b:a,kw[0]);
+                  if(_w0.dir==='row'){
+                    const _ry=parseInt(_w0.cells[0].split(',')[1])+1;
+                    _missedLoc='Reihe '+_ry;
+                  } else {
+                    const _cx=parseInt(_w0.cells[0].split(',')[0]);
+                    _missedLoc='Spalte '+'ABCDEFG'[_cx];
+                  }
+                }
+                window.SHOVECHAT.onPlayerMove({wordsFormed:0, killsCount:kills, longestWord:'', wordPossibleButMissed:true, location:_missedLoc});
+              }
             }
           }
         }catch(e){}
@@ -1919,7 +1932,20 @@ function humanDoPush(push){
                 jumped:ko.jumped||false,jumpFrom:ko.jumped?{x:ko.jump.fromX,y:ko.jump.fromY}:null,
                 jumpTo:ko.jumped?{x:ko.jump.toX,y:ko.jump.toY}:null});
               // SHOVECHAT: a word WAS possible — retroactively show the lerntipp
-              if(window.SHOVECHAT) window.SHOVECHAT.onPlayerMove({wordsFormed:0, killsCount:kills, longestWord:'', wordPossibleButMissed:true});
+              if(window.SHOVECHAT){
+                let _missedLoc='';
+                if(kw && kw.length){
+                  const _w0=kw.reduce((a,b)=>b.word.length>a.word.length?b:a,kw[0]);
+                  if(_w0.dir==='row'){
+                    const _ry=parseInt(_w0.cells[0].split(',')[1])+1;
+                    _missedLoc='Reihe '+_ry;
+                  } else {
+                    const _cx=parseInt(_w0.cells[0].split(',')[0]);
+                    _missedLoc='Spalte '+'ABCDEFG'[_cx];
+                  }
+                }
+                window.SHOVECHAT.onPlayerMove({wordsFormed:0, killsCount:kills, longestWord:'', wordPossibleButMissed:true, location:_missedLoc});
+              }
             }
           }
         }catch(e){}
@@ -2752,11 +2778,15 @@ function render(){
   _btnBack.style.overflow="hidden";
   const _canPlay=pendingNextTurn&&!_stonesReturning;
   const _bp=mc.querySelector('#btnPlay');
-  _bp.style.opacity=_canPlay?'1':'0.25';
-  _bp.style.pointerEvents=_canPlay?'auto':'none';
-  // Defensive: re-affirm gold background to avoid flicker where border shows but fill doesn't
+  // Set background BEFORE opacity changes, atomically in same frame
+  // to avoid flicker where border shows before fill renders
   _bp.style.background='linear-gradient(135deg,#f59e0b,#d97706)';
   _bp.textContent='▶ WEITER';
+  // Use requestAnimationFrame to commit opacity AFTER background is painted
+  requestAnimationFrame(()=>{
+    _bp.style.opacity=_canPlay?'1':'0.25';
+    _bp.style.pointerEvents=_canPlay?'auto':'none';
+  });
   const _sig=comment+"|"+commentCls;
   const _commentChanged=_sig!==_lastCommentSig;
   _lastCommentSig=_sig;
@@ -3245,7 +3275,7 @@ fullReset();render();
     btn.id = 'shoveAudioToggle';
     btn.title = 'Klangwelt an/aus';
     btn.innerHTML = SVG_OFF;
-    btn.style.cssText = 'position:fixed;top:14px;right:14px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.25);color:rgba(255,255,255,.5);cursor:pointer;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:inherit;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:all .25s ease;-webkit-tap-highlight-color:transparent;touch-action:manipulation;padding:0';
+    btn.style.cssText = 'position:fixed;top:14px;right:14px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.25);color:rgba(255,255,255,.5);cursor:pointer;z-index:1;display:flex;align-items:center;justify-content:center;font-family:inherit;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:all .25s ease;-webkit-tap-highlight-color:transparent;touch-action:manipulation;padding:0';
     btn.addEventListener('click', async ()=>{
       const isOn = await toggle();
       if(isOn){
@@ -3290,173 +3320,287 @@ fullReset();render();
   // Each pool: array of templates. {name} = player name (used 20-30%).
   
   const POOLS = {
-    // Trigger 1: Player killed but no word, though one was possible
-    no_word_possible: [
-      "Schau nochmal hin{name_comma} — da war ein Wort.",
-      "Du warst nah dran. Drücke ZURÜCK und versuch's nochmal.",
-      "Ein Wort hätte sich gerade angeboten{name_comma}. Hast du's gesehen?",
-      "Da lag was. Schade.",
-      "Mit ZURÜCK kannst du nochmal hinschauen.",
-      "Manchmal liegt ein Wort einen Schub neben deiner Wahl.",
-      "Schau die Reihe nochmal an.",
-      "Versuch's anders. Da war ein Wort.",
-      "Pass auf{name_comma} — du übersiehst was.",
-      "Nicht jeder Schub ist gleich gut. Geh zurück.",
-      "Du hast gekillt{name_comma}, aber kein Wort gebaut. Probier's nochmal.",
-      "Was du gesucht hast — es war da.",
-      "Eine Reihe weiter, und du hättest ein Wort gehabt.",
-      "Sieh genauer hin. Es lohnt sich.",
-      "Dein Auge ist schneller als dein Daumen{name_comma}. Geh zurück.",
-      "Hier verschenkst du was.",
-      "Manchmal ist der erste Zug nicht der beste.",
-      "Kein Wort, aber Killen alleine reicht nicht — du weißt es.",
-      "Ich glaube{name_comma}, du hast es gesehen. Aber zu spät.",
-      "Ein Buchstabe verschoben — ein Wort entstanden. Du hast's nicht genutzt.",
-    ],
+    // Trigger 1 — kein Wort, aber Wort möglich
+    no_word_possible: {
+      // NICE: didactic, warm, with location hints (filled at runtime)
+      nice: [
+        "Schau nochmal hin{name_comma}. Da war ein Wort.",
+        "Magst du nochmal hinschauen? Mit ZURÜCK kannst du den Zug neu spielen.",
+        "Da liegt was. Probier's nochmal{name_comma}.",
+        "Hinschauen lohnt sich. Es gibt einen Zug der ein Wort baut.",
+        "Mit ZURÜCK gehst du nochmal hin. Du wirst es sehen.",
+        "Ein Wort wartete dort. Geh zurück und such nochmal{name_comma}.",
+        "Versuch's nochmal — manchmal sieht man im zweiten Anlauf mehr.",
+        "Da war eine Möglichkeit. ZURÜCK und probier eine andere Richtung.",
+        "Ein Wort hat sich versteckt. Du findest es{name_comma}.",
+        "Du warst dicht dran. Schau die Reihen und Spalten nochmal an.",
+        "Killen alleine reicht nicht — bau ein Wort. Es war eines da.",
+        "Lass dir Zeit. Drücke ZURÜCK und schau das Brett in Ruhe an.",
+        "Da steckt ein Wort. Geh zurück, schau genau{name_comma}.",
+        "Das Brett verbirgt eines. Mit ZURÜCK probier's anders.",
+        "Es war ein Zug möglich der ein Wort gebaut hätte. Versuch ihn zu finden.",
+      ],
+      // NICE WITH LOCATION — uses {loc} placeholder, filled with "Reihe 3" or "Spalte D"
+      nice_loc: [
+        "Schau nochmal in {loc} hin{name_comma}. Da liegt ein Wort.",
+        "{loc} hat ein Wort versteckt. Drücke ZURÜCK und probier's da.",
+        "In {loc} wartet etwas auf dich. Hinschauen lohnt sich.",
+        "{loc} — da war was{name_comma}. Geh nochmal hin.",
+        "Ein Wort liegt in {loc}. Du musst nur den richtigen Schub finden.",
+        "Versuch's mit ZURÜCK und schau {loc} genauer an.",
+        "{loc} verbirgt ein Wort. Du findest es.",
+        "Da war ein Wort in {loc}. Probier einen anderen Zug.",
+      ],
+      // GREAT/SHARP: existing pool — direkter, weniger pädagogisch
+      default: [
+        "Da war ein Wort{name_comma}.",
+        "Du warst nah dran. ZURÜCK probiert sich.",
+        "Ein Wort war möglich. Schade.",
+        "Da lag was.",
+        "Mit ZURÜCK siehst du nochmal hin.",
+        "Manchmal liegt ein Wort einen Schub neben deiner Wahl.",
+        "Schau die Reihe nochmal an.",
+        "Versuch's anders. Da war ein Wort.",
+        "Pass auf{name_comma}.",
+        "Killen ohne Wort — das schadet dir mehr als mir.",
+        "Du hast gekillt{name_comma}, aber kein Wort. Probier's nochmal.",
+        "Was du gesucht hast — es war da.",
+        "Eine Reihe weiter, und du hättest ein Wort gehabt.",
+        "Hier verschenkst du was.",
+        "Manchmal ist der erste Zug nicht der beste.",
+        "Ich glaube{name_comma}, du hast es gesehen. Nur zu spät.",
+        "Ein Buchstabe verschoben — ein Wort entstanden. Du hast's nicht genutzt.",
+        "Killen alleine bringt dich nicht weiter — du weißt es.",
+      ],
+    },
     
-    // Trigger 3: Player destroyed a Bot-formed word
-    word_destroyed: [
-      "Mist. Mein Wort.",
-      "Du hast mich entdeckt{name_comma}.",
-      "Ich hatte mich darauf verlassen.",
-      "Gut beobachtet. Das tut weh.",
-      "Du hast meine Reihe zerschlagen.",
-      "Frecher Zug{name_comma}.",
-      "Jetzt muss ich neu denken.",
-      "Da war ich zu sicher.",
-      "Mein Wort ist weg. Pech für mich.",
-      "Du spielst aufmerksam.",
-      "Ich hab's nicht kommen sehen{name_comma}.",
-      "Treffer. Ich verliere die Reihe.",
-      "Ich bewundere das.",
-      "Ein guter Schub. Mein Wort liegt im Staub.",
-      "Du machst mir das Spiel schwer.",
-      "Schöner Schlag{name_comma}.",
-      "So gewinnt man.",
-      "Ich war zu vertraut. Du nicht.",
-      "Du nimmst mir, woran ich hing.",
-      "Genau dort wollte ich nicht treffen.",
-    ],
+    // Trigger 3 — Spieler zerstört Bot-Wort
+    word_destroyed: {
+      sharp: [
+        "Verdammt. Mein Wort.",
+        "Das hatte ich gebraucht. Du hast's gesehen.",
+        "Du hast mich erwischt{name_comma}.",
+        "Mist. Da hing meine Reihe dran.",
+        "Genau dort wollte ich nicht treffen.",
+        "Frecher Schub{name_comma}.",
+        "Treffer. Ich verliere die Reihe.",
+        "Du nimmst mir, woran ich hing.",
+        "Ich hab mich darauf verlassen — Fehler von mir.",
+        "Schöner Schlag. Jetzt muss ich neu denken.",
+        "Du spielst aufmerksam. Das spüre ich.",
+        "Da war ich zu sicher. Mein Fehler.",
+        "Mein Wort liegt im Staub. Pech für mich.",
+        "Ich hab's nicht kommen sehen{name_comma}.",
+      ],
+      default: [
+        "Mist. Mein Wort.",
+        "Du hast mich entdeckt{name_comma}.",
+        "Ich hatte mich darauf verlassen.",
+        "Gut beobachtet.",
+        "Du hast meine Reihe zerschlagen.",
+        "Frecher Zug{name_comma}.",
+        "Jetzt muss ich neu denken.",
+        "Mein Wort ist weg.",
+        "Du spielst aufmerksam.",
+        "Treffer.",
+        "Ich bewundere das.",
+        "Du machst mir das Spiel schwer.",
+        "Schöner Schlag{name_comma}.",
+        "Ich war zu vertraut. Du nicht.",
+      ],
+    },
     
-    // Trigger 4: Player formed a long word (6-7 letters)
-    long_word: [
-      "Stark gesehen{name_comma}.",
-      "Sechs Buchstaben. Respekt.",
-      "Ein langes Wort. Selten so klar.",
-      "Du hast Augen{name_comma}.",
-      "Lang und sauber.",
-      "Sieben Buchstaben — das ist Sprache.",
-      "Solche Züge zeigen, wer du bist.",
-      "Davor habe ich Respekt.",
-      "Da macht das Spiel Spaß{name_comma}.",
-      "Ich notiere mir das.",
-      "Schöner Treffer.",
-      "Ein Wort dieser Länge — beeindruckend.",
-      "Du hast die Reihe gelesen.",
-      "Genau so spielt man SHOVE.",
-      "Das Brett hat sich vor dir geöffnet.",
-      "Ich war abgelenkt — jetzt verstehe ich es.",
-    ],
+    // Trigger 4 — langes Wort (≥6)
+    long_word: {
+      nice: [
+        "Stark gesehen{name_comma}!",
+        "Sechs Buchstaben — du hast die Reihe gelesen.",
+        "Sehr gut. Das ist genau die Aufmerksamkeit die du brauchst.",
+        "Bravo{name_comma}. So spielt man SHOVE.",
+        "Du hast Augen. Weiter so.",
+        "Genau das ist der Zug den ich dir wünschte.",
+        "Schön! Lange Wörter machen den Unterschied.",
+        "Du wirst besser. Das sehe ich.",
+      ],
+      default: [
+        "Stark gesehen{name_comma}.",
+        "Sechs Buchstaben. Respekt.",
+        "Ein langes Wort. Selten so klar.",
+        "Du hast Augen{name_comma}.",
+        "Lang und sauber.",
+        "Sieben Buchstaben — das ist Sprache.",
+        "Solche Züge zeigen, wer du bist.",
+        "Davor habe ich Respekt.",
+        "Da macht das Spiel Spaß{name_comma}.",
+        "Schöner Treffer.",
+        "Du hast die Reihe gelesen.",
+        "Genau so spielt man SHOVE.",
+        "Das Brett hat sich vor dir geöffnet.",
+        "Beeindruckend.",
+      ],
+    },
     
-    // Trigger 5: Player formed word with many kills (3+)
-    many_kills: [
-      "Drei Buchstaben auf einen Schlag{name_comma}. Brutal.",
-      "Vier Steine. Mit einem Wort.",
-      "Du machst kurzen Prozess.",
-      "Das war ein Hieb.",
-      "Mehrere mit einem Zug. Gut gerechnet.",
-      "Ich verliere viel auf einmal.",
-      "Effizient{name_comma}. Das schmerzt.",
-      "Mit einem Zug räumst du auf.",
-      "Drei oder vier? Ich zähle nicht gern.",
-      "Schwer zu kontern.",
-      "Gut platziert. Ich verliere ein Stück Boden.",
-      "Du gehst gründlich vor{name_comma}.",
-      "Effekt-Kombi. Solche Züge merke ich mir.",
-      "Mehrere Treffer plus Wort — das ist schwer zu spielen.",
-      "Wer so spielt, gewinnt.",
-    ],
+    // Trigger 5 — Wort mit ≥3 Kills
+    many_kills: {
+      sharp: [
+        "Drei Buchstaben weg{name_comma}. Ich verliere Boden.",
+        "Vier Steine. Mit einem Wort. Das wird eng für mich.",
+        "Du machst kurzen Prozess.",
+        "Effizient{name_comma}. Das spüre ich deutlich.",
+        "Ich verliere viel auf einmal. Beim nächsten Mal pass ich besser auf.",
+        "Schwer zu kontern.",
+        "Du gehst gründlich vor.",
+        "Drei oder vier? Ich zähle nicht gern.",
+        "Wer so spielt, gewinnt. Vermutlich du.",
+      ],
+      default: [
+        "Drei Buchstaben auf einen Schlag{name_comma}. Brutal.",
+        "Vier Steine. Mit einem Wort.",
+        "Du machst kurzen Prozess.",
+        "Das war ein Hieb.",
+        "Mehrere mit einem Zug. Gut gerechnet.",
+        "Ich verliere viel auf einmal.",
+        "Effizient{name_comma}.",
+        "Mit einem Zug räumst du auf.",
+        "Schwer zu kontern.",
+        "Gut platziert.",
+        "Du gehst gründlich vor{name_comma}.",
+        "Effekt-Kombi.",
+        "Mehrere Treffer plus Wort — das ist schwer zu spielen.",
+      ],
+    },
     
-    // Trigger 7: Three player moves without forming a word
-    three_no_word: [
-      "Du suchst noch{name_comma}. Ich warte.",
-      "Drei Züge, kein Wort. Kein Druck.",
-      "Lass dir Zeit. Wörter kommen, wenn man hinschaut.",
-      "Du killst — aber baust nicht.",
-      "Brot ohne Sauce, würde ich sagen.",
-      "Ich bin in Geduld geschult.",
-      "Vielleicht{name_comma} hilft ein Schritt zurück.",
-      "Killen alleine reicht nicht. Du weißt es.",
-      "Wörter sind dein Werkzeug. Vergiss sie nicht.",
-      "Ohne Wort gewinnst du nichts zurück.",
-      "Schau das Brett an. Wirklich an.",
-      "Drei Züge ohne Wort. Was siehst du nicht?",
-      "Du läufst leer.",
-      "Es liegen Wörter da. Sie warten.",
-    ],
+    // Trigger 7 — drei Züge ohne Wort
+    three_no_word: {
+      nice: [
+        "Du suchst noch{name_comma}. Lass dir Zeit, Wörter kommen wenn man hinschaut.",
+        "Drei Züge, kein Wort. Mit ZURÜCK kannst du nochmal nachdenken.",
+        "Killen alleine bringt dich nicht weiter. Schau das Brett an, da liegen Wörter.",
+        "Atme durch{name_comma}. Schau die Reihen und Spalten nacheinander an.",
+        "Du killst — aber baust nicht. Versuch ein Wort zu sehen.",
+        "Wörter sind dein Werkzeug. Vergiss sie nicht.",
+        "Geh ein paar Züge zurück und schau nochmal genau hin.",
+        "Du läufst gerade leer. Ein Wort hilft dir mehr als drei Kills.",
+      ],
+      default: [
+        "Du suchst noch{name_comma}. Ich warte.",
+        "Drei Züge, kein Wort. Kein Druck.",
+        "Lass dir Zeit. Wörter kommen, wenn man hinschaut.",
+        "Du killst — aber baust nicht.",
+        "Ich bin in Geduld geschult.",
+        "Killen alleine reicht nicht. Du weißt es.",
+        "Wörter sind dein Werkzeug.",
+        "Schau das Brett an. Wirklich an.",
+        "Drei Züge ohne Wort. Was siehst du nicht?",
+        "Du läufst leer.",
+        "Es liegen Wörter da. Sie warten.",
+      ],
+    },
     
-    // Trigger 8: Bot formed a word with 3+ kills returning
-    bot_proud: [
-      "Das tut mir gut.",
-      "Ich nehme zurück, was ich verliere.",
-      "Eine schöne Reihe.",
-      "Manchmal liegt das Wort offen.",
-      "Drei Buchstaben kommen zurück. Danke.",
-      "Mein Brett füllt sich wieder.",
-      "Da hatte ich Glück.",
-      "Sprache zahlt sich aus.",
-      "Ich atme durch.",
-      "Wieder im Spiel.",
-      "Ein Wort, vier Steine. Genau das brauche ich.",
-      "Die Buchstaben fallen mir zu.",
-      "Ich rolle zurück.",
-      "Eine kleine Erholung.",
-      "Du machst es spannend{name_comma}, aber ich bleibe dran.",
-    ],
+    // Trigger 8 — Bot bildet Wort mit ≥3 Kills (selbst-stolz)
+    bot_proud: {
+      sharp: [
+        "Das tut mir gut.",
+        "Manchmal liegt das Wort offen. Heute zu meinen Gunsten.",
+        "Ich nehme zurück, was ich verliere — und manchmal mehr.",
+        "Eine schöne Reihe. Mein Glück.",
+        "Drei Buchstaben kommen zurück. Ich atme auf.",
+        "Sprache zahlt sich aus. Auch für mich.",
+        "Wieder im Spiel. Knapp, aber wieder im Spiel.",
+        "Ein Wort, vier Steine. Ich gestehe — das tut richtig gut.",
+        "Die Buchstaben fallen mir zu. Heute.",
+        "Du machst es spannend{name_comma}, aber ich bleibe dran.",
+        "Ich rolle zurück. Vergeben Sie mir die Freude.",
+        "Schadenfreude ist nicht nett. Ich versuch's zu verstecken.",
+      ],
+      default: [
+        "Das tut mir gut.",
+        "Ich nehme zurück, was ich verliere.",
+        "Eine schöne Reihe.",
+        "Manchmal liegt das Wort offen.",
+        "Drei Buchstaben kommen zurück.",
+        "Mein Brett füllt sich wieder.",
+        "Sprache zahlt sich aus.",
+        "Wieder im Spiel.",
+        "Die Buchstaben fallen mir zu.",
+        "Eine kleine Erholung.",
+        "Du machst es spannend{name_comma}, aber ich bleibe dran.",
+      ],
+    },
     
-    // Trigger 14: Player used ZURÜCK
-    used_back: [
-      "Klüger so.",
-      "Schau nochmal — du wirst was finden.",
-      "ZURÜCK ist kein Schwächezeichen.",
-      "Gute Wahl{name_comma}. Denk in Ruhe nach.",
-      "Ich warte.",
-      "Niemand sieht alles beim ersten Blick.",
-      "Lerne. Das ist der Punkt.",
-      "Geh nochmal hin. Da war was.",
-      "Spielregeln sind nur die halbe Miete. Hinschauen ist die andere.",
-      "Du nutzt das Werkzeug. Gut.",
-      "Manche Züge müssen reifen.",
-      "Zurück, dann besser. So funktioniert das.",
-    ],
+    // Trigger 14 — ZURÜCK genutzt
+    used_back: {
+      nice: [
+        "Klüger so{name_comma}. Schau nochmal in Ruhe hin.",
+        "Genau dafür ist ZURÜCK da. Lerne in deinem Tempo.",
+        "Gute Wahl. Das Brett wartet auf dich.",
+        "Niemand sieht alles beim ersten Blick. Du auch nicht.",
+        "Lerne. Das ist der Punkt.",
+        "Manche Züge müssen reifen. Lass es zu.",
+        "Schau nochmal genau hin — du wirst was finden.",
+        "Hinschauen ist ein Werkzeug. Du nutzt es richtig{name_comma}.",
+      ],
+      default: [
+        "Klüger so.",
+        "Schau nochmal — du wirst was finden.",
+        "ZURÜCK ist kein Schwächezeichen.",
+        "Gute Wahl{name_comma}. Denk in Ruhe nach.",
+        "Niemand sieht alles beim ersten Blick.",
+        "Lerne. Das ist der Punkt.",
+        "Geh nochmal hin. Da war was.",
+        "Du nutzt das Werkzeug. Gut.",
+        "Manche Züge müssen reifen.",
+        "Zurück, dann besser. So funktioniert das.",
+      ],
+    },
     
-    // Trigger 18: Player wins
-    player_wins: [
-      "Du hast mich besiegt{name_comma}. Sauber gespielt.",
-      "Gut gemacht. Ich erkenne das an.",
-      "Ich verliere — und du hast es verdient.",
-      "Stark{name_comma}. Wirklich stark.",
-      "Du warst heute besser. Glückwunsch.",
-      "Manchmal verliere ich. Das war heute so.",
-      "Du hast mich überrascht. Schön.",
-      "Großer Sieg. Ich verneige mich.",
-      "Ich habe verloren — und gelernt.",
-      "Bis zum nächsten Mal.",
-    ],
+    // Trigger 18 — Spieler gewinnt
+    player_wins: {
+      sharp: [
+        "Du hast mich besiegt{name_comma}. Sauber gespielt — das war kein Glück.",
+        "Ich verliere — und du hast es verdient. Selbstironie hilft mir grad.",
+        "Stark{name_comma}. Wirklich stark. Bis bald.",
+        "Du warst heute besser. Glückwunsch.",
+        "Manchmal verliere ich. Heute war heute.",
+        "Du hast mich überrascht. Das ehrt dich.",
+        "Großer Sieg. Ich verneige mich.",
+        "Ich habe verloren — und gelernt. So sollte es sein.",
+      ],
+      default: [
+        "Du hast mich besiegt{name_comma}. Sauber gespielt.",
+        "Gut gemacht. Ich erkenne das an.",
+        "Ich verliere — und du hast es verdient.",
+        "Stark{name_comma}.",
+        "Du warst heute besser.",
+        "Glückwunsch.",
+        "Manchmal verliere ich.",
+        "Du hast mich überrascht.",
+        "Bis zum nächsten Mal.",
+      ],
+    },
     
-    // Trigger 19: Bot wins
-    bot_wins: [
-      "Knapp{name_comma}. Du warst nah dran.",
-      "Ein gutes Spiel. Wir spielen wieder.",
-      "Ich habe gewonnen — aber nicht leicht.",
-      "Du machst es mir nicht einfach. Bis bald.",
-      "Heute ich, morgen vielleicht du.",
-      "Stark gespielt{name_comma}. Wirklich.",
-      "Eng. Ich war auf der Hut.",
-      "Du wirst besser. Das sehe ich.",
-      "Beim nächsten Mal kommst du näher.",
-      "Solche Spiele machen mir Freude.",
-    ],
+    // Trigger 19 — Bot gewinnt
+    bot_wins: {
+      sharp: [
+        "Knapp{name_comma}. Du warst nah dran. Bei nächsten Mal kommst du näher.",
+        "Ein gutes Spiel. Wir spielen wieder — du wirst stärker.",
+        "Ich habe gewonnen — aber nicht leicht. Das hat mir Spaß gemacht.",
+        "Eng. Ich war auf der Hut die ganze Partie.",
+        "Stark gespielt{name_comma}. Wirklich.",
+        "Solche Spiele machen mir Freude. Auch wenn ich gewinne — knapp.",
+        "Du wirst besser. Das sehe ich. Beim nächsten Mal kippt's vielleicht andersrum.",
+      ],
+      default: [
+        "Knapp{name_comma}.",
+        "Ein gutes Spiel. Wir spielen wieder.",
+        "Ich habe gewonnen — aber nicht leicht.",
+        "Du machst es mir nicht einfach.",
+        "Heute ich, morgen vielleicht du.",
+        "Stark gespielt{name_comma}.",
+        "Eng.",
+        "Du wirst besser.",
+      ],
+    },
   };
   
   function fmtName(text){
@@ -3468,9 +3612,31 @@ fullReset();render();
     return text.replace(/\{name_comma\}/g, ', ' + name);
   }
   
-  function pick(triggerKey){
+  function pick(triggerKey, opts){
     if(!STATE.on) return null;
-    const pool = POOLS[triggerKey];
+    const triggerObj = POOLS[triggerKey];
+    if(!triggerObj) return null;
+    
+    // Determine current level
+    const lvl = (typeof kiLevel !== 'undefined') ? kiLevel : 2;
+    // 1=Nice, 2=Great, 3=Sharp
+    
+    // Pick the right sub-pool
+    let pool;
+    if(lvl === 1){
+      // Prefer nice_loc when location info is available, then nice, then default
+      if(opts && opts.location && triggerObj.nice_loc){
+        pool = triggerObj.nice_loc;
+      } else if(triggerObj.nice){
+        pool = triggerObj.nice;
+      } else {
+        pool = triggerObj.default;
+      }
+    } else if(lvl === 3 && triggerObj.sharp){
+      pool = triggerObj.sharp;
+    } else {
+      pool = triggerObj.default;
+    }
     if(!pool) return null;
     
     // Avoid same trigger firing in immediate sequence
@@ -3480,11 +3646,9 @@ fullReset();render();
     const available = pool.filter(t => !STATE.used.has(t));
     let chosen;
     if(available.length === 0){
-      // All used — start fresh (still avoid the very last one)
       STATE.used.clear();
       chosen = pool[Math.floor(Math.random() * pool.length)];
     } else {
-      // Use name version with ~25% probability if name placeholder present
       const useName = Math.random() < 0.25;
       const filtered = available.filter(t => useName ? t.includes('{name_comma}') : true);
       const finalPool = filtered.length > 0 ? filtered : available;
@@ -3492,7 +3656,13 @@ fullReset();render();
     }
     STATE.used.add(chosen);
     STATE.lastTrigger = triggerKey;
-    return fmtName(chosen);
+    
+    // Fill in {loc} placeholder if present
+    let result = fmtName(chosen);
+    if(opts && opts.location){
+      result = result.replace(/\{loc\}/g, opts.location);
+    }
+    return result;
   }
   
   function showBox(text){
@@ -3533,7 +3703,7 @@ fullReset();render();
   // These are called from hook points in the game logic
   
   function onPlayerMove(opts){
-    // opts: { wordsFormed: number, killsCount: number, longestWord: string, wordPossibleButMissed: boolean }
+    // opts: { wordsFormed, killsCount, longestWord, wordPossibleButMissed, location }
     if(!STATE.on){ hideBox(); return; }
     
     if(opts.wordsFormed === 0){
@@ -3541,7 +3711,7 @@ fullReset();render();
       
       // Trigger 1: kein wort gebildet, aber wort möglich
       if(opts.wordPossibleButMissed){
-        const txt = pick('no_word_possible');
+        const txt = pick('no_word_possible', {location: opts.location});
         if(txt){ showBox(txt); return; }
       }
       
@@ -3556,19 +3726,16 @@ fullReset();render();
       STATE.consecutiveNoWord = 0;
       STATE.gameWordsCount++;
       
-      // Trigger 5: viele Kills mit Wort (3+)
       if(opts.killsCount >= 3){
         const txt = pick('many_kills');
         if(txt){ showBox(txt); return; }
       }
       
-      // Trigger 4: langes Wort (6-7 Buchstaben)
       if(opts.longestWord && opts.longestWord.length >= 6){
         const txt = pick('long_word');
         if(txt){ showBox(txt); return; }
       }
       
-      // Word destroyed check (Trigger 3) — handled in onBoardDelta
       hideBox();
     }
   }
@@ -3658,7 +3825,7 @@ fullReset();render();
     btn.title = 'Bot-Kommentare an/aus';
     btn.innerHTML = SVG_BUBBLE_ON;
     // Position next to speaker (which is at top:14, right:14, w:38). Place this 8px to its left.
-    btn.style.cssText = 'position:fixed;top:14px;right:62px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(109,199,199,.4);background:rgba(109,199,199,.12);color:#6dc7c7;cursor:pointer;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:inherit;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:all .25s ease;-webkit-tap-highlight-color:transparent;touch-action:manipulation;padding:0';
+    btn.style.cssText = 'position:fixed;top:14px;right:62px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(109,199,199,.4);background:rgba(109,199,199,.12);color:#6dc7c7;cursor:pointer;z-index:1;display:flex;align-items:center;justify-content:center;font-family:inherit;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:all .25s ease;-webkit-tap-highlight-color:transparent;touch-action:manipulation;padding:0';
     btn.addEventListener('click', ()=>{
       setEnabled(!STATE.on);
       if(STATE.on){
