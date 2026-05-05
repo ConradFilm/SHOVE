@@ -1344,6 +1344,10 @@ function applyWordHL(newWords){
   const winners=newWords.filter(w=>w.word.length===max);
   activeWordBoxes=wordsToBoxes(winners);
   activeWordKeys=new Set(winners.flatMap(w=>w.cells));
+  // SHOVECHAT: record bot's words for "destroyed" tracking
+  if(window.SHOVECHAT && turn===aiPlayer){
+    for(const w of winners) window.SHOVECHAT.recordBotWord(w.word);
+  }
 }
 
 // ═══ HISTORY ═══
@@ -1702,6 +1706,9 @@ function chooseColor(color){
 }
 
 function startGame(){
+  // SHOVECHAT: reset for new game
+  if(window.SHOVECHAT) window.SHOVECHAT.reset();
+
   const base=buildStartBoard(currentBoardDef);board={};
   for(const k in base)board[k]={...base[k],owner:revealOwners[k]||P1};
   moveNum=0;_botMoveCount=0;gameEnding=false;wordHLMap={};comment="";commentCls="";
@@ -1729,7 +1736,23 @@ function checkGameEnd(){
     ?`<b style="color:#4caf50">Du gewinnst.</b> Bot noch ${lCount} Buchstabe${lCount!==1?"n":""} übrig.`
     :`<b style="color:#ef4444">Bot gewinnt.</b> Du hast noch ${lCount} Buchstabe${lCount!==1?"n":""} übrig.`;
   commentCls="gold";wordHLMap={};activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();render();
-  setTimeout(()=>{simPhase="gameover";render();},2000);
+  setTimeout(()=>{simPhase="gameover";
+    // SHOVECHAT: announce game end - check who won
+    if(window.SHOVECHAT){
+      try{
+        let oCount=0, vCount=0;
+        for(const k in board){
+          if(board[k] && board[k].owner){
+            if(board[k].owner===humanPlayer) oCount++;
+            else vCount++;
+          }
+        }
+        // Player wins if they still have stones, lost if at/below 3
+        const playerWon = oCount > 3;
+        window.SHOVECHAT.onGameEnd(playerWon);
+      }catch(e){}
+    }
+    render();},2000);
   return true;
 }
 
@@ -1865,6 +1888,8 @@ function humanDoPush(push){
                 kiMove:{x:ko.push.x,y:ko.push.y,dir:ko.push.dir.n,destX:ko.push.destX,destY:ko.push.destY},
                 jumped:ko.jumped||false,jumpFrom:ko.jumped?{x:ko.jump.fromX,y:ko.jump.fromY}:null,
                 jumpTo:ko.jumped?{x:ko.jump.toX,y:ko.jump.toY}:null});
+              // SHOVECHAT: a word WAS possible — retroactively show the lerntipp
+              if(window.SHOVECHAT) window.SHOVECHAT.onPlayerMove({wordsFormed:0, killsCount:kills, longestWord:'', wordPossibleButMissed:true});
             }
           }
         }catch(e){}
@@ -1893,6 +1918,8 @@ function humanDoPush(push){
                 kiMove:{x:ko.push.x,y:ko.push.y,dir:ko.push.dir.n,destX:ko.push.destX,destY:ko.push.destY},
                 jumped:ko.jumped||false,jumpFrom:ko.jumped?{x:ko.jump.fromX,y:ko.jump.fromY}:null,
                 jumpTo:ko.jumped?{x:ko.jump.toX,y:ko.jump.toY}:null});
+              // SHOVECHAT: a word WAS possible — retroactively show the lerntipp
+              if(window.SHOVECHAT) window.SHOVECHAT.onPlayerMove({wordsFormed:0, killsCount:kills, longestWord:'', wordPossibleButMissed:true});
             }
           }
         }catch(e){}
@@ -1902,6 +1929,15 @@ function humanDoPush(push){
     gameStats[humanPlayer===P1?'p1elim':'p2elim']+=kills;
     const fc=String.fromCharCode(65+push.x),fr=push.y+1;
     const tc=String.fromCharCode(65+push.destX),tr=push.destY+1;
+    // SHOVECHAT: signal player move and (later) check if a word was possible
+    const _chatLongest=newWords.length>0?Math.max(...newWords.map(w=>w.word.length)):0;
+    const _chatLongestWord=newWords.length>0?newWords.reduce((a,b)=>b.word.length>a.word.length?b:a,newWords[0]).word:'';
+    // Word-destroyed check: did the player kill any of bot's recent words?
+    if(window.SHOVECHAT){
+      const _destroyed=window.SHOVECHAT.checkBotWordDestroyed(board);
+      if(_destroyed){ window.SHOVECHAT.onBoardDelta({destroyedBotWord:true}); }
+      else { window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false}); }
+    }
     if(newWords.length>0){
       wordBoxKills=kills;wordBoxKillColor=humanPlayer===P1?'#9b6ab5':'#e07820';
       applyWordHL(newWords);
@@ -2090,6 +2126,11 @@ function humanAITurn(){
         const nw2=getNewWords(bw2,findAllWords(board));
         const kills=best.push.result.removed.filter(x=>x.owner!==aiPlayer).length;
         gameStats[aiPlayer===P1?'p1elim':'p2elim']+=kills;
+        // SHOVECHAT: signal bot move
+        if(window.SHOVECHAT){
+          const _chatBotLongest=nw2.length>0?nw2.reduce((a,b)=>b.word.length>a.word.length?b:a,nw2[0]).word:'';
+          window.SHOVECHAT.onBotMove({killsCount:kills, longestWord:_chatBotLongest});
+        }
         if(nw2.length>0){
           wordBoxKills=kills;wordBoxKillColor=aiPlayer===P1?'#9b6ab5':'#e07820';
           applyWordHL(nw2);
@@ -2273,6 +2314,11 @@ function humanAITurn(){
         const nw2=getNewWords(bw2,findAllWords(board));
         const kills=best.push.result.removed.filter(x=>x.owner!==aiPlayer).length;
         gameStats[aiPlayer===P1?'p1elim':'p2elim']+=kills;
+        // SHOVECHAT: signal bot move
+        if(window.SHOVECHAT){
+          const _chatBotLongest=nw2.length>0?nw2.reduce((a,b)=>b.word.length>a.word.length?b:a,nw2[0]).word:'';
+          window.SHOVECHAT.onBotMove({killsCount:kills, longestWord:_chatBotLongest});
+        }
         if(nw2.length>0){
           wordBoxKills=kills;wordBoxKillColor=aiPlayer===P1?'#9b6ab5':'#e07820';
           applyWordHL(nw2);
@@ -2744,6 +2790,9 @@ function onPlay(){
 
 let _onBackLock=false;
 function onBack(){
+  // SHOVECHAT: notify on back used
+  if(window.SHOVECHAT) window.SHOVECHAT.onBackUsed();
+
   if(_onBackLock)return;
   _onBackLock=true;setTimeout(()=>{_onBackLock=false;},600);
   // Decide which snap to use:
@@ -3214,6 +3263,426 @@ fullReset();render();
     document.body.appendChild(btn);
   }
   
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', injectToggle);
+  } else {
+    injectToggle();
+  }
+})();
+
+
+// =========================================================================
+// SHOVE CHAT — Bot-Kommentare situativ unter dem Brett
+// 8 Trigger, jeder mit ~20 Varianten. Memory pro Spiel: keine Wiederholung.
+// Toggle: Sprechblasen-Icon oben rechts neben dem Lautsprecher
+// =========================================================================
+(function(){
+  const STATE = {
+    on: true,           // default ON
+    used: new Set(),    // sentences already used in this game
+    lastTrigger: null,  // throttle: don't fire same trigger twice in a row
+    consecutiveNoWord: 0, // counter for "drei Züge ohne Wort"
+    botLastWords: [],   // last bot-formed words (for "destroyed" detection)
+    gameWordsCount: 0,  // total player words this game (for "first word" / "praise")
+  };
+  
+  // === COMMENT POOLS ===
+  // Each pool: array of templates. {name} = player name (used 20-30%).
+  
+  const POOLS = {
+    // Trigger 1: Player killed but no word, though one was possible
+    no_word_possible: [
+      "Schau nochmal hin{name_comma} — da war ein Wort.",
+      "Du warst nah dran. Drücke ZURÜCK und versuch's nochmal.",
+      "Ein Wort hätte sich gerade angeboten{name_comma}. Hast du's gesehen?",
+      "Da lag was. Schade.",
+      "Mit ZURÜCK kannst du nochmal hinschauen.",
+      "Manchmal liegt ein Wort einen Schub neben deiner Wahl.",
+      "Schau die Reihe nochmal an.",
+      "Versuch's anders. Da war ein Wort.",
+      "Pass auf{name_comma} — du übersiehst was.",
+      "Nicht jeder Schub ist gleich gut. Geh zurück.",
+      "Du hast gekillt{name_comma}, aber kein Wort gebaut. Probier's nochmal.",
+      "Was du gesucht hast — es war da.",
+      "Eine Reihe weiter, und du hättest ein Wort gehabt.",
+      "Sieh genauer hin. Es lohnt sich.",
+      "Dein Auge ist schneller als dein Daumen{name_comma}. Geh zurück.",
+      "Hier verschenkst du was.",
+      "Manchmal ist der erste Zug nicht der beste.",
+      "Kein Wort, aber Killen alleine reicht nicht — du weißt es.",
+      "Ich glaube{name_comma}, du hast es gesehen. Aber zu spät.",
+      "Ein Buchstabe verschoben — ein Wort entstanden. Du hast's nicht genutzt.",
+    ],
+    
+    // Trigger 3: Player destroyed a Bot-formed word
+    word_destroyed: [
+      "Mist. Mein Wort.",
+      "Du hast mich entdeckt{name_comma}.",
+      "Ich hatte mich darauf verlassen.",
+      "Gut beobachtet. Das tut weh.",
+      "Du hast meine Reihe zerschlagen.",
+      "Frecher Zug{name_comma}.",
+      "Jetzt muss ich neu denken.",
+      "Da war ich zu sicher.",
+      "Mein Wort ist weg. Pech für mich.",
+      "Du spielst aufmerksam.",
+      "Ich hab's nicht kommen sehen{name_comma}.",
+      "Treffer. Ich verliere die Reihe.",
+      "Ich bewundere das.",
+      "Ein guter Schub. Mein Wort liegt im Staub.",
+      "Du machst mir das Spiel schwer.",
+      "Schöner Schlag{name_comma}.",
+      "So gewinnt man.",
+      "Ich war zu vertraut. Du nicht.",
+      "Du nimmst mir, woran ich hing.",
+      "Genau dort wollte ich nicht treffen.",
+    ],
+    
+    // Trigger 4: Player formed a long word (6-7 letters)
+    long_word: [
+      "Stark gesehen{name_comma}.",
+      "Sechs Buchstaben. Respekt.",
+      "Ein langes Wort. Selten so klar.",
+      "Du hast Augen{name_comma}.",
+      "Lang und sauber.",
+      "Sieben Buchstaben — das ist Sprache.",
+      "Solche Züge zeigen, wer du bist.",
+      "Davor habe ich Respekt.",
+      "Da macht das Spiel Spaß{name_comma}.",
+      "Ich notiere mir das.",
+      "Schöner Treffer.",
+      "Ein Wort dieser Länge — beeindruckend.",
+      "Du hast die Reihe gelesen.",
+      "Genau so spielt man SHOVE.",
+      "Das Brett hat sich vor dir geöffnet.",
+      "Ich war abgelenkt — jetzt verstehe ich es.",
+    ],
+    
+    // Trigger 5: Player formed word with many kills (3+)
+    many_kills: [
+      "Drei Buchstaben auf einen Schlag{name_comma}. Brutal.",
+      "Vier Steine. Mit einem Wort.",
+      "Du machst kurzen Prozess.",
+      "Das war ein Hieb.",
+      "Mehrere mit einem Zug. Gut gerechnet.",
+      "Ich verliere viel auf einmal.",
+      "Effizient{name_comma}. Das schmerzt.",
+      "Mit einem Zug räumst du auf.",
+      "Drei oder vier? Ich zähle nicht gern.",
+      "Schwer zu kontern.",
+      "Gut platziert. Ich verliere ein Stück Boden.",
+      "Du gehst gründlich vor{name_comma}.",
+      "Effekt-Kombi. Solche Züge merke ich mir.",
+      "Mehrere Treffer plus Wort — das ist schwer zu spielen.",
+      "Wer so spielt, gewinnt.",
+    ],
+    
+    // Trigger 7: Three player moves without forming a word
+    three_no_word: [
+      "Du suchst noch{name_comma}. Ich warte.",
+      "Drei Züge, kein Wort. Kein Druck.",
+      "Lass dir Zeit. Wörter kommen, wenn man hinschaut.",
+      "Du killst — aber baust nicht.",
+      "Brot ohne Sauce, würde ich sagen.",
+      "Ich bin in Geduld geschult.",
+      "Vielleicht{name_comma} hilft ein Schritt zurück.",
+      "Killen alleine reicht nicht. Du weißt es.",
+      "Wörter sind dein Werkzeug. Vergiss sie nicht.",
+      "Ohne Wort gewinnst du nichts zurück.",
+      "Schau das Brett an. Wirklich an.",
+      "Drei Züge ohne Wort. Was siehst du nicht?",
+      "Du läufst leer.",
+      "Es liegen Wörter da. Sie warten.",
+    ],
+    
+    // Trigger 8: Bot formed a word with 3+ kills returning
+    bot_proud: [
+      "Das tut mir gut.",
+      "Ich nehme zurück, was ich verliere.",
+      "Eine schöne Reihe.",
+      "Manchmal liegt das Wort offen.",
+      "Drei Buchstaben kommen zurück. Danke.",
+      "Mein Brett füllt sich wieder.",
+      "Da hatte ich Glück.",
+      "Sprache zahlt sich aus.",
+      "Ich atme durch.",
+      "Wieder im Spiel.",
+      "Ein Wort, vier Steine. Genau das brauche ich.",
+      "Die Buchstaben fallen mir zu.",
+      "Ich rolle zurück.",
+      "Eine kleine Erholung.",
+      "Du machst es spannend{name_comma}, aber ich bleibe dran.",
+    ],
+    
+    // Trigger 14: Player used ZURÜCK
+    used_back: [
+      "Klüger so.",
+      "Schau nochmal — du wirst was finden.",
+      "ZURÜCK ist kein Schwächezeichen.",
+      "Gute Wahl{name_comma}. Denk in Ruhe nach.",
+      "Ich warte.",
+      "Niemand sieht alles beim ersten Blick.",
+      "Lerne. Das ist der Punkt.",
+      "Geh nochmal hin. Da war was.",
+      "Spielregeln sind nur die halbe Miete. Hinschauen ist die andere.",
+      "Du nutzt das Werkzeug. Gut.",
+      "Manche Züge müssen reifen.",
+      "Zurück, dann besser. So funktioniert das.",
+    ],
+    
+    // Trigger 18: Player wins
+    player_wins: [
+      "Du hast mich besiegt{name_comma}. Sauber gespielt.",
+      "Gut gemacht. Ich erkenne das an.",
+      "Ich verliere — und du hast es verdient.",
+      "Stark{name_comma}. Wirklich stark.",
+      "Du warst heute besser. Glückwunsch.",
+      "Manchmal verliere ich. Das war heute so.",
+      "Du hast mich überrascht. Schön.",
+      "Großer Sieg. Ich verneige mich.",
+      "Ich habe verloren — und gelernt.",
+      "Bis zum nächsten Mal.",
+    ],
+    
+    // Trigger 19: Bot wins
+    bot_wins: [
+      "Knapp{name_comma}. Du warst nah dran.",
+      "Ein gutes Spiel. Wir spielen wieder.",
+      "Ich habe gewonnen — aber nicht leicht.",
+      "Du machst es mir nicht einfach. Bis bald.",
+      "Heute ich, morgen vielleicht du.",
+      "Stark gespielt{name_comma}. Wirklich.",
+      "Eng. Ich war auf der Hut.",
+      "Du wirst besser. Das sehe ich.",
+      "Beim nächsten Mal kommst du näher.",
+      "Solche Spiele machen mir Freude.",
+    ],
+  };
+  
+  function fmtName(text){
+    const name = (typeof playerName !== 'undefined' && playerName) ? playerName : '';
+    if(!name){
+      // Strip {name_comma} placeholder cleanly
+      return text.replace(/\{name_comma\}/g, '').replace(/\s\s+/g, ' ').trim();
+    }
+    return text.replace(/\{name_comma\}/g, ', ' + name);
+  }
+  
+  function pick(triggerKey){
+    if(!STATE.on) return null;
+    const pool = POOLS[triggerKey];
+    if(!pool) return null;
+    
+    // Avoid same trigger firing in immediate sequence
+    if(STATE.lastTrigger === triggerKey && Math.random() > 0.4) return null;
+    
+    // Pick a non-used variant
+    const available = pool.filter(t => !STATE.used.has(t));
+    let chosen;
+    if(available.length === 0){
+      // All used — start fresh (still avoid the very last one)
+      STATE.used.clear();
+      chosen = pool[Math.floor(Math.random() * pool.length)];
+    } else {
+      // Use name version with ~25% probability if name placeholder present
+      const useName = Math.random() < 0.25;
+      const filtered = available.filter(t => useName ? t.includes('{name_comma}') : true);
+      const finalPool = filtered.length > 0 ? filtered : available;
+      chosen = finalPool[Math.floor(Math.random() * finalPool.length)];
+    }
+    STATE.used.add(chosen);
+    STATE.lastTrigger = triggerKey;
+    return fmtName(chosen);
+  }
+  
+  function showBox(text){
+    if(!text) return;
+    let box = document.getElementById('shoveBotChat');
+    const board = document.querySelector('.board');
+    if(!board) return;
+    
+    if(!box){
+      box = document.createElement('div');
+      box.id = 'shoveBotChat';
+      box.style.cssText = 'max-width:560px;margin:14px auto 4px;padding:11px 14px;border-left:2px solid #6dc7c7;background:rgba(109,199,199,.04);border-radius:0 6px 6px 0;animation:shoveBotChatIn .35s ease-out';
+      // Insert AFTER the board
+      const boardWrapper = board.closest('div[style*="position:relative"]') || board.parentElement;
+      if(boardWrapper && boardWrapper.parentElement){
+        boardWrapper.parentElement.insertBefore(box, boardWrapper.nextSibling);
+      }
+    }
+    box.innerHTML = '<div style="font-size:9px;letter-spacing:1.5px;color:#6dc7c7;margin-bottom:3px;font-weight:600">BOT</div><div style="font-size:13px;color:rgba(255,255,255,.82);line-height:1.5;font-style:italic">' + text + '</div>';
+    box.style.display = 'block';
+  }
+  
+  function hideBox(){
+    const box = document.getElementById('shoveBotChat');
+    if(box) box.style.display = 'none';
+  }
+  
+  // Inject CSS for fade-in animation
+  function injectCSS(){
+    if(document.getElementById('shoveBotChatCSS')) return;
+    const s = document.createElement('style');
+    s.id = 'shoveBotChatCSS';
+    s.textContent = '@keyframes shoveBotChatIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }';
+    document.head.appendChild(s);
+  }
+  
+  // === EVENT API ===
+  // These are called from hook points in the game logic
+  
+  function onPlayerMove(opts){
+    // opts: { wordsFormed: number, killsCount: number, longestWord: string, wordPossibleButMissed: boolean }
+    if(!STATE.on){ hideBox(); return; }
+    
+    if(opts.wordsFormed === 0){
+      STATE.consecutiveNoWord++;
+      
+      // Trigger 1: kein wort gebildet, aber wort möglich
+      if(opts.wordPossibleButMissed){
+        const txt = pick('no_word_possible');
+        if(txt){ showBox(txt); return; }
+      }
+      
+      // Trigger 7: drei Züge in Folge ohne Wort
+      if(STATE.consecutiveNoWord >= 3){
+        const txt = pick('three_no_word');
+        if(txt){ showBox(txt); STATE.consecutiveNoWord = 0; return; }
+      }
+      
+      hideBox();
+    } else {
+      STATE.consecutiveNoWord = 0;
+      STATE.gameWordsCount++;
+      
+      // Trigger 5: viele Kills mit Wort (3+)
+      if(opts.killsCount >= 3){
+        const txt = pick('many_kills');
+        if(txt){ showBox(txt); return; }
+      }
+      
+      // Trigger 4: langes Wort (6-7 Buchstaben)
+      if(opts.longestWord && opts.longestWord.length >= 6){
+        const txt = pick('long_word');
+        if(txt){ showBox(txt); return; }
+      }
+      
+      // Word destroyed check (Trigger 3) — handled in onBoardDelta
+      hideBox();
+    }
+  }
+  
+  function onBoardDelta(opts){
+    // opts: { destroyedBotWord: boolean }
+    if(!STATE.on) return;
+    if(opts.destroyedBotWord){
+      const txt = pick('word_destroyed');
+      if(txt){ showBox(txt); return; }
+    }
+  }
+  
+  function onBotMove(opts){
+    // opts: { killsCount, longestWord }
+    if(!STATE.on) return;
+    
+    // Trigger 8: Bot ist stolz (3+ kills mit eigenem Wort)
+    if(opts.killsCount >= 3 && opts.longestWord){
+      const txt = pick('bot_proud');
+      if(txt){ showBox(txt); return; }
+    }
+    
+    hideBox();
+  }
+  
+  function onBackUsed(){
+    if(!STATE.on) return;
+    const txt = pick('used_back');
+    if(txt) showBox(txt);
+  }
+  
+  function onGameEnd(playerWon){
+    if(!STATE.on) return;
+    const txt = pick(playerWon ? 'player_wins' : 'bot_wins');
+    if(txt) showBox(txt);
+  }
+  
+  function recordBotWord(word){
+    if(!word) return;
+    STATE.botLastWords.push(word.toLowerCase());
+    if(STATE.botLastWords.length > 5) STATE.botLastWords.shift();
+  }
+  
+  function checkBotWordDestroyed(currentBoard){
+    // Build set of all words currently on board
+    const stillThere = new Set();
+    try{
+      const all = (typeof findAllWords === 'function') ? findAllWords(currentBoard) : [];
+      for(const w of all) stillThere.add(w.word.toLowerCase());
+    }catch(e){ return false; }
+    // Was any of bot's last words destroyed?
+    for(const w of STATE.botLastWords){
+      if(!stillThere.has(w)){
+        // Destroyed — remove from list so we don't trigger again
+        STATE.botLastWords = STATE.botLastWords.filter(x => x !== w);
+        return true;
+      }
+    }
+    return false;
+  }
+  
+  function reset(){
+    STATE.used.clear();
+    STATE.lastTrigger = null;
+    STATE.consecutiveNoWord = 0;
+    STATE.botLastWords = [];
+    STATE.gameWordsCount = 0;
+    hideBox();
+  }
+  
+  function setEnabled(v){
+    STATE.on = v;
+    if(!v) hideBox();
+  }
+  function isOn(){ return STATE.on; }
+  
+  // === INJECT TOGGLE BUTTON (chat bubble) ===
+  // Speech-bubble icon — different from speaker
+  const SVG_BUBBLE_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h11c.55 0 1-.45 1-1z"/></svg>';
+  const SVG_BUBBLE_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M2.27 1.72L1 3l1.84 1.84L2 5v17l4-4h11l4.18 4.18 1.27-1.27L2.27 1.72zM6 14l-2 2V5.27L14.73 16H7l-1 1v-3zm9.73-2H17V4H6.27L4.55 2.27C4.7 2.11 4.83 2 5 2h17c.55 0 1 .45 1 1v17l-3.18-3.18L17.73 12H15.73z"/></svg>';
+  
+  function injectToggle(){
+    if(document.getElementById('shoveBotChatToggle')) return;
+    const btn = document.createElement('button');
+    btn.id = 'shoveBotChatToggle';
+    btn.title = 'Bot-Kommentare an/aus';
+    btn.innerHTML = SVG_BUBBLE_ON;
+    // Position next to speaker (which is at top:14, right:14, w:38). Place this 8px to its left.
+    btn.style.cssText = 'position:fixed;top:14px;right:62px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(109,199,199,.4);background:rgba(109,199,199,.12);color:#6dc7c7;cursor:pointer;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:inherit;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:all .25s ease;-webkit-tap-highlight-color:transparent;touch-action:manipulation;padding:0';
+    btn.addEventListener('click', ()=>{
+      setEnabled(!STATE.on);
+      if(STATE.on){
+        btn.style.borderColor = '#6dc7c7';
+        btn.style.color = '#6dc7c7';
+        btn.style.background = 'rgba(109,199,199,.12)';
+        btn.innerHTML = SVG_BUBBLE_ON;
+      } else {
+        btn.style.borderColor = 'rgba(255,255,255,.18)';
+        btn.style.color = 'rgba(255,255,255,.5)';
+        btn.style.background = 'rgba(0,0,0,.25)';
+        btn.innerHTML = SVG_BUBBLE_OFF;
+      }
+    });
+    document.body.appendChild(btn);
+  }
+  
+  // Public API
+  window.SHOVECHAT = {
+    onPlayerMove, onBoardDelta, onBotMove, onBackUsed, onGameEnd,
+    recordBotWord, checkBotWordDestroyed, reset, setEnabled, isOn, hideBox,
+  };
+  
+  injectCSS();
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', injectToggle);
   } else {
