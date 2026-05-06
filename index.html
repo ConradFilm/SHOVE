@@ -2645,7 +2645,20 @@ function render(){
           <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:1px">${bc}</div>
         </div>
       </div>
-      <div style="font-size:11px;color:rgba(255,255,255,.4)">${humanStartsGame?"Du beginnst.":"Bot beginnt."}</div>
+      <div style="border-top:1px solid rgba(255,255,255,.08);width:240px;padding-top:18px;margin-top:12px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:rgba(255,255,255,.5);letter-spacing:.3px;line-height:1.4;">
+          <div style="flex-shrink:0;width:24px;height:24px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.6);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+          </div>
+          <div><span style="color:rgba(255,255,255,.85)">Score</span> — oben rechts ein-/ausschalten</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:rgba(255,255,255,.5);letter-spacing:.3px;line-height:1.4;">
+          <div style="flex-shrink:0;width:24px;height:24px;border-radius:50%;border:1px solid rgba(109,199,199,.4);background:rgba(109,199,199,.12);color:#6dc7c7;display:flex;align-items:center;justify-content:center;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h11c.55 0 1-.45 1-1z"/></svg>
+          </div>
+          <div><span style="color:rgba(255,255,255,.85)">Bot spricht</span> — oben rechts ein-/ausschalten</div>
+        </div>
+      </div>
     </div>`;
     return;
   }
@@ -3458,36 +3471,6 @@ fullReset();render();
       ],
     },
     
-    // Trigger 4 — langes Wort (≥6)
-    long_word: {
-      nice: [
-        "Stark gesehen{name_comma}!",
-        "Sechs Buchstaben — du hast die Reihe gelesen.",
-        "Sehr gut. Das ist genau die Aufmerksamkeit, die du brauchst.",
-        "Bravo{name_comma}. So spielt man SHOVE.",
-        "Du hast gute Augen. Weiter so.",
-        "Genau das ist der Zug, den ich dir wünschte.",
-        "Schön! Lange Wörter machen Spaß.",
-        "Du wirst besser. Das sehe ich.",
-      ],
-      default: [
-        "Stark gesehen{name_comma}.",
-        "Sechs Buchstaben. Respekt.",
-        "Ein langes Wort. Selten so klar.",
-        "Du hast gute Augen{name_comma}.",
-        "Lang und sauber.",
-        "Sieben Buchstaben — das ist Sprache.",
-        "Solche Züge zeigen, wer du bist.",
-        "Davor habe ich Respekt.",
-        "Da macht das Spiel Spaß{name_comma}.",
-        "Schöner Treffer. Das macht Spaß mit dir.",
-        "Du hast die Reihe gelesen.",
-        "Genau so spielt man SHOVE.",
-        "Das Brett hat sich vor dir geöffnet.",
-        "Beeindruckend.",
-      ],
-    },
-    
     // Trigger 5 — Wort mit ≥3 Kills
     many_kills: {
       sharp: [
@@ -3777,11 +3760,6 @@ fullReset();render();
       
       if(opts.killsCount >= 3){
         const txt = pick('many_kills');
-        if(txt){ showBox(txt); return; }
-      }
-      
-      if(opts.longestWord && opts.longestWord.length >= 6){
-        const txt = pick('long_word');
         if(txt){ showBox(txt); return; }
       }
       
