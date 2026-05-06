@@ -1964,6 +1964,40 @@ function humanDoPush(push){
       const _destroyed=window.SHOVECHAT.checkBotWordDestroyed(board);
       if(_destroyed){ window.SHOVECHAT.onBoardDelta({destroyedBotWord:true}); }
       else { window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false}); }
+      // === FALLE-DETEKTION === Endphase aktiv und Bot könnte im nächsten Zug viele Spieler-Steine eliminieren?
+      try {
+        const _hCount = (function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
+        const _aCount = (function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===aiPlayer)c++;}return c;})();
+        if((_hCount<=9 || _aCount<=9) && _hCount>3){
+          // Endphase aktiv. Simuliere alle Bot-Züge, finde max kills von Spieler-Steinen.
+          let worstKills = 0;
+          let worstLoc = '';
+          // Iteriere alle Bot-Buchstaben
+          for(const k in board){
+            if(!board[k] || board[k].owner !== aiPlayer) continue;
+            const [bx, by] = k.split(',').map(Number);
+            const _pushes = getPushesFrom(board, aiPlayer, bx, by);
+            for(const p of _pushes){
+              const removed = p.result && p.result.removed ? p.result.removed : [];
+              const playerKills = removed.filter(r => r.owner === humanPlayer).length;
+              if(playerKills > worstKills){
+                worstKills = playerKills;
+                // Push-Richtung gibt uns die Linie
+                if(p.dir.dx === 0){
+                  // Vertikal: Spalte
+                  worstLoc = 'Spalte ' + 'ABCDEFG'[p.x];
+                } else {
+                  // Horizontal: Reihe
+                  worstLoc = 'Reihe ' + (p.y+1);
+                }
+              }
+            }
+          }
+          if(worstKills >= 3){
+            window.SHOVECHAT.onPlayerEndgameTrap({location: worstLoc, killCount: worstKills});
+          }
+        }
+      } catch(e) { /* fail silently */ }
     }
     if(newWords.length>0){
       wordBoxKills=kills;wordBoxKillColor=humanPlayer===P1?'#9b6ab5':'#e07820';
@@ -3528,6 +3562,33 @@ fullReset();render();
       ],
     },
     
+    // Trigger 16 — Falle: Spieler stellt sich Falle in der Endphase
+    // Spieler-Buchstaben in einer Linie konzentriert — Bot könnte mehrere wegfegen
+    // Nur in Nice + Great. In Sharp respektiert der Bot die Wahl des Spielers.
+    endgame_trap: {
+      nice: [
+        "Marc, schau {loc} nochmal an. Du machst es mir leicht.",
+        "Pass auf{name_comma} — in {loc} bist du verwundbar. Streu deine Buchstaben.",
+        "{loc} — da liegen deine Buchstaben in einer Linie. Ich könnte sie alle holen.",
+        "In der Endphase zählt jede Position. {loc} ist gerade riskant.",
+        "Schau {loc} an. Ein Schub von mir, und du verlierst mehrere auf einmal.",
+        "Hinweis: {loc} ist eine offene Flanke. Mit ZURÜCK kannst du anders setzen.",
+        "Du bist in {loc} angreifbar. Denk nochmal.",
+        "Eine Reihe ohne Streuung — gefährlich für dich{name_comma}. Schau {loc}.",
+      ],
+      default: [
+        "Schau {loc}. Du machst es mir leicht.",
+        "Pass auf{name_comma} — in {loc} bist du verwundbar.",
+        "{loc} — eine Linie aus deinen Buchstaben. Riskant.",
+        "{loc} ist eine offene Flanke. Du weißt, was passieren kann.",
+        "Achte auf {loc}. In der Endphase zählt Streuung.",
+        "Schau {loc} nochmal. Da kann ich viel holen.",
+        "{loc}, {name}. Stell dir keine Falle.",
+        "Konzentrierte Buchstaben in {loc} — denk nochmal.",
+      ],
+      // sharp: kein Eintrag — in Sharp respektiert der Bot die Wahl, warnt nicht
+    },
+    
     // Trigger 8 — Bot bildet Wort mit ≥3 Kills (selbst-stolz)
     bot_proud: {
       sharp: [
@@ -3536,7 +3597,7 @@ fullReset();render();
         "Ich nehme zurück, was ich verliere — und manchmal mehr.",
         "Eine schöne Reihe. Mein Glück.",
         "Drei Buchstaben kommen zurück. Ich atme auf.",
-        "Sprache zahlt sich aus. Auch für mich.",
+        "Drei deiner Buchstaben — bei mir. Das hilft mir.",
         "Wieder im Spiel. Knapp, aber wieder im Spiel.",
         "Ein Wort, vier Steine. Ich gestehe — das tut richtig gut.",
         "Die Buchstaben fallen mir zu. Heute.",
@@ -3551,12 +3612,36 @@ fullReset();render();
         "Manchmal liegt das Wort offen.",
         "Drei Buchstaben kommen zurück.",
         "Mein Brett füllt sich wieder.",
-        "Sprache zahlt sich aus.",
+        "Drei zurück bei mir.",
         "Wieder im Spiel.",
         "Die Buchstaben fallen mir zu.",
         "Eine kleine Erholung.",
         "Du machst es spannend{name_comma}, aber ich bleibe dran.",
         "Das Leben ist schön!",
+      ],
+    },
+    
+    // Trigger 2 — Endphase-Falle: Spieler hat sich verwundbar aufgestellt
+    trap_warning: {
+      nice: [
+        "Pass auf{name_comma} — du machst es mir leicht in {loc}.",
+        "Schau {loc} nochmal an{name_comma}. Da kann ich dir wehtun.",
+        "In {loc} liegen viele deiner Buchstaben in einer Linie. Mit ZURÜCK kannst du noch streuen.",
+        "Achtung — {loc} ist offen für mich. Drücke ZURÜCK, platziere anders.",
+        "Du baust mir eine Reihe{name_comma}. Schau nochmal hin.",
+        "Im Endspiel zählt wo deine Buchstaben liegen, nicht nur wieviele. Achte auf {loc}.",
+        "Eine zu lange Linie deiner Buchstaben in {loc}. Ich könnte sie kippen.",
+        "Streue, sonst wird's eng{name_comma}. Schau {loc}.",
+      ],
+      default: [
+        "Vorsicht{name_comma} — {loc} ist offen für mich.",
+        "Du stellst dir selbst eine Falle in {loc}.",
+        "Achte auf {loc}. Ein Schub von mir, und du verlierst mehrere.",
+        "Zu viele deiner Buchstaben in {loc}.",
+        "Pass auf{name_comma}. Eine Reihe wie {loc} ist gefährlich für dich.",
+        "Du machst dich verwundbar in {loc}.",
+        "{loc} — bequem für mich. Ungemütlich für dich.",
+        "Eine Linie zu offen. Du weißt was kommt.",
       ],
     },
     
@@ -3753,6 +3838,16 @@ fullReset();render();
         if(txt){ showBox(txt); STATE.consecutiveNoWord = 0; return; }
       }
       
+      // Trigger 16: Endgame-Falle (nur Nice + Great, nicht Sharp)
+      const lvl = (typeof kiLevel !== 'undefined') ? kiLevel : 2;
+      if(lvl !== 3){
+        const trapLoc = detectEndgameTrap();
+        if(trapLoc){
+          const txt = pick('endgame_trap', {location: trapLoc});
+          if(txt){ showBox(txt); return; }
+        }
+      }
+      
       hideBox();
     } else {
       STATE.consecutiveNoWord = 0;
@@ -3761,6 +3856,16 @@ fullReset();render();
       if(opts.killsCount >= 3){
         const txt = pick('many_kills');
         if(txt){ showBox(txt); return; }
+      }
+      
+      // Trigger 16: Endgame-Falle (nur Nice + Great)
+      const lvl = (typeof kiLevel !== 'undefined') ? kiLevel : 2;
+      if(lvl !== 3){
+        const trapLoc = detectEndgameTrap();
+        if(trapLoc){
+          const txt = pick('endgame_trap', {location: trapLoc});
+          if(txt){ showBox(txt); return; }
+        }
       }
       
       hideBox();
@@ -3805,6 +3910,72 @@ fullReset();render();
     if(!word) return;
     STATE.botLastWords.push(word.toLowerCase());
     if(STATE.botLastWords.length > 5) STATE.botLastWords.shift();
+  }
+  
+  // Trigger 16: detect endgame trap
+  // Returns location string ("Reihe X" or "Spalte Y") if player has 3+ stones in a line
+  // that the bot could eliminate in next move; null otherwise.
+  function detectEndgameTrap(){
+    try {
+      // Only in endgame
+      let myCount = 0, botCount = 0;
+      for(const k in board){
+        if(board[k] && board[k].owner){
+          if(board[k].owner === humanPlayer) myCount++;
+          else botCount++;
+        }
+      }
+      if(myCount > 9) return null; // not yet endgame
+      if(myCount <= 3 || botCount <= 3) return null; // game ending soon, no point warning
+      
+      // Find longest contiguous run of player stones in any row or column
+      let bestLine = null;
+      let bestRun = 0;
+      
+      for(let y = 0; y < 7; y++){
+        let run = 0;
+        let firstX = -1;
+        for(let x = 0; x < 7; x++){
+          const cell = board[K(x,y)];
+          if(cell && cell.owner === humanPlayer){
+            if(run === 0) firstX = x;
+            run++;
+            if(run > bestRun){
+              bestRun = run;
+              bestLine = { type:'row', idx:y };
+            }
+          } else {
+            run = 0;
+          }
+        }
+      }
+      
+      for(let x = 0; x < 7; x++){
+        let run = 0;
+        for(let y = 0; y < 7; y++){
+          const cell = board[K(x,y)];
+          if(cell && cell.owner === humanPlayer){
+            run++;
+            if(run > bestRun){
+              bestRun = run;
+              bestLine = { type:'col', idx:x };
+            }
+          } else {
+            run = 0;
+          }
+        }
+      }
+      
+      // Need 3+ contiguous stones for a meaningful trap warning
+      if(bestRun < 3) return null;
+      
+      // Format location
+      if(bestLine.type === 'row'){
+        return 'Reihe ' + (bestLine.idx + 1);
+      } else {
+        return 'Spalte ' + 'ABCDEFG'[bestLine.idx];
+      }
+    } catch(e){ return null; }
   }
   
   function checkBotWordDestroyed(currentBoard){
@@ -3871,8 +4042,18 @@ fullReset();render();
   }
   
   // Public API
+  function onPlayerEndgameTrap(opts){
+    // opts: { location: "Reihe 3" | "Spalte D", killCount: number }
+    if(!STATE.on) return;
+    // Only fire if level is Nice (1) or Great (2), NOT Sharp (3)
+    const lvl = (typeof kiLevel !== 'undefined') ? kiLevel : 2;
+    if(lvl === 3) return;
+    const txt = pick('trap_warning', {location: opts.location});
+    if(txt) showBox(txt);
+  }
+  
   window.SHOVECHAT = {
-    onPlayerMove, onBoardDelta, onBotMove, onBackUsed, onGameEnd,
+    onPlayerMove, onBoardDelta, onBotMove, onBackUsed, onGameEnd, onPlayerEndgameTrap,
     recordBotWord, checkBotWordDestroyed, reset, setEnabled, isOn, hideBox,
   };
   
