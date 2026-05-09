@@ -3940,21 +3940,26 @@ fullReset();render();
   function showBox(text){
     if(!text) return;
     let box = document.getElementById('shoveBotChat');
-    const board = document.querySelector('.board');
-    if(!board) return;
     
     if(!box){
+      // Append to body so the chat box survives render() calls that rebuild #app.innerHTML
       box = document.createElement('div');
       box.id = 'shoveBotChat';
-      box.style.cssText = 'max-width:560px;margin:14px auto 4px;padding:11px 14px;border-left:2px solid #6dc7c7;background:rgba(109,199,199,.04);border-radius:0 6px 6px 0;animation:shoveBotChatIn .35s ease-out';
-      // Insert AFTER the board
-      const boardWrapper = board.closest('div[style*="position:relative"]') || board.parentElement;
-      if(boardWrapper && boardWrapper.parentElement){
-        boardWrapper.parentElement.insertBefore(box, boardWrapper.nextSibling);
-      }
+      document.body.appendChild(box);
     }
+    
+    // Position the box visually below the board.
+    // Use the board element's bottom edge to align — query it fresh each time
+    // because #app might have been rebuilt and the previous board reference is stale.
+    const board = document.querySelector('.board');
+    let topPx = 'auto';
+    if(board){
+      const rect = board.getBoundingClientRect();
+      topPx = (window.scrollY + rect.bottom + 14) + 'px';
+    }
+    
+    box.style.cssText = 'position:absolute;top:' + topPx + ';left:50%;transform:translateX(-50%);max-width:560px;width:calc(100% - 32px);padding:11px 14px;border-left:2px solid #6dc7c7;background:rgba(109,199,199,.10);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:0 6px 6px 0;animation:shoveBotChatIn .35s ease-out;z-index:50;display:block';
     box.innerHTML = '<div style="font-size:9px;letter-spacing:1.5px;color:#6dc7c7;margin-bottom:3px;font-weight:600">BOT</div><div style="font-size:13px;color:rgba(255,255,255,.82);line-height:1.5;font-style:italic">' + text + '</div>';
-    box.style.display = 'block';
   }
   
   function hideBox(){
@@ -3998,7 +4003,7 @@ fullReset();render();
         if(opts.killsCount >= 3 && _net >= 2){
           // Echtes Killing — Anerkennung
           const txt = pick('good_killing', {kill: opts.killsCount, loss: _loss});
-          if(txt){ showBox(txt); return; }
+if(txt){ showBox(txt); return; }
         } else if(_net <= 1){
           // Patt oder Verlust beim Killen — didaktischer Hinweis
           const txt = pick('bad_killing', {kill: opts.killsCount, loss: _loss, net: _net});
