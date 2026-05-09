@@ -1982,21 +1982,7 @@ function humanDoPush(push){
       // ist das die wichtigere Info als die Bot-Reaktion auf sein eigenes zerstörtes Wort.
       const _isBalanceIssue = newWords.length > 0 && _playerLoss >= kills && kills > 0;
       
-      // DEBUG: log everything we know about this move
-      if(window.SHOVE_DEBUG){
-        window.SHOVE_DEBUG.show(
-          'ZUG-DEBUG\n' +
-          'kills (Bot-Steine eliminiert): ' + kills + '\n' +
-          'wordsFormed: ' + newWords.length + '\n' +
-          'playerLoss (eigene gefallen): ' + _playerLoss + '\n' +
-          '_destroyed (Bot-Wort zerstört): ' + _destroyed + '\n' +
-          '_isBalanceIssue: ' + _isBalanceIssue + '\n' +
-          'CHAT.isOn(): ' + (window.SHOVECHAT && window.SHOVECHAT.isOn ? window.SHOVECHAT.isOn() : '?') + '\n' +
-          '→ Pfad: ' + (_isBalanceIssue ? 'BALANCE' : (_destroyed && newWords.length > 0 ? 'DESTROYED' : 'PLAYER_MOVE'))
-        );
-      }
-      
-      if(_isBalanceIssue){
+if(_isBalanceIssue){
         window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
       } else if(_destroyed && newWords.length > 0){
         window.SHOVECHAT.onBoardDelta({destroyedBotWord:true});
@@ -4268,23 +4254,5 @@ fullReset();render();
   }
 })();
 
-
-// === TEMPORARY DEBUG OVERLAY — entfernen wenn Bug gefixt ===
-window.SHOVE_DEBUG = {
-  show(text){
-    let el = document.getElementById('shoveDebugBox');
-    if(!el){
-      el = document.createElement('div');
-      el.id = 'shoveDebugBox';
-      el.style.cssText = 'position:fixed;top:60px;left:8px;right:8px;background:rgba(220,40,40,.92);color:#fff;font-family:monospace;font-size:11px;padding:10px 12px;border-radius:6px;z-index:99999;line-height:1.5;white-space:pre-wrap;max-height:200px;overflow:auto;box-shadow:0 4px 16px rgba(0,0,0,.5)';
-      document.body.appendChild(el);
-    }
-    const ts = new Date().toLocaleTimeString();
-    el.textContent = '['+ts+'] ' + text;
-    clearTimeout(el._timer);
-    el._timer = setTimeout(()=>{ el.style.display='none'; }, 12000);
-    el.style.display = 'block';
-  }
-};
 </script>
 </body>
