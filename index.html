@@ -1981,15 +1981,26 @@ function humanDoPush(push){
       // Wenn der Spieler ein Wort gebildet hat aber netto verloren oder null gemacht hat,
       // ist das die wichtigere Info als die Bot-Reaktion auf sein eigenes zerstörtes Wort.
       const _isBalanceIssue = newWords.length > 0 && _playerLoss >= kills && kills > 0;
+      
+      // DEBUG: log everything we know about this move
+      if(window.SHOVE_DEBUG){
+        window.SHOVE_DEBUG.show(
+          'ZUG-DEBUG\n' +
+          'kills (Bot-Steine eliminiert): ' + kills + '\n' +
+          'wordsFormed: ' + newWords.length + '\n' +
+          'playerLoss (eigene gefallen): ' + _playerLoss + '\n' +
+          '_destroyed (Bot-Wort zerstört): ' + _destroyed + '\n' +
+          '_isBalanceIssue: ' + _isBalanceIssue + '\n' +
+          'CHAT.isOn(): ' + (window.SHOVECHAT && window.SHOVECHAT.isOn ? window.SHOVECHAT.isOn() : '?') + '\n' +
+          '→ Pfad: ' + (_isBalanceIssue ? 'BALANCE' : (_destroyed && newWords.length > 0 ? 'DESTROYED' : 'PLAYER_MOVE'))
+        );
+      }
+      
       if(_isBalanceIssue){
-        // Wort gebildet, aber Bilanz-Problem — bilanzierender Kommentar
         window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
       } else if(_destroyed && newWords.length > 0){
-        // Wort gebildet UND Bot-Wort zerstört — emotionale Reaktion des Bots
         window.SHOVECHAT.onBoardDelta({destroyedBotWord:true});
       } else {
-        // Alle anderen Fälle (insbesondere: KEIN Wort gebildet, auch wenn Bot-Wort zerstört wurde)
-        // → onPlayerMove sorgt für good_killing, three_no_word, no_word_possible, etc.
         window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
       }
       // === FALLE-DETEKTION === Endphase aktiv und Bot könnte im nächsten Zug viele Spieler-Steine eliminieren?
@@ -3524,6 +3535,37 @@ fullReset();render();
       ],
     },
     
+    // Trigger BAD_KILLING — Spieler killt ohne Wort, opfert aber genau so viele oder mehr eigene
+    // (also netto Bilanz <= +1 trotz Kills). Tonlage: didaktisch, "lohnt sich nicht"
+    bad_killing: {
+      nice: [
+        "Du killst {kill} meine — aber verlierst {loss} eigene. Lohnt sich nicht{name_comma}.",
+        "Bilanz fast null: {kill} bei mir, {loss} bei dir. Mit ZURÜCK probier was anderes.",
+        "Beide Seiten verlieren etwa gleich viel. Das hilft niemandem — vor allem dir nicht.",
+        "Du killst — aber teuer{name_comma}. {loss} eigene gegen {kill} meine.",
+        "Ohne Wort kommen keine Buchstaben zurück. {loss} verloren ist {loss} weniger.",
+        "Schau den Zug nochmal an{name_comma}. Du opferst soviel du killst.",
+        "Kein Wort, kein Mehrgewinn — nur gemeinsamer Verlust.",
+        "Du gehst zu hart vor. Bei {kill}:{loss} ist das eher Patt als Killing.",
+      ],
+      default: [
+        "Patt-Killing: {kill} meine, {loss} deine. Kein Mehrwert.",
+        "Du killst hart{name_comma} — aber teuer für dich.",
+        "{kill} bei mir, {loss} bei dir. Lohnt sich nicht.",
+        "Ohne Wort und mit Selbstverlust — das ist kein Gewinn.",
+        "Beide schrumpfen{name_comma}. Du nicht weniger als ich.",
+        "Killer-Zug, aber teuer erkauft.",
+      ],
+      sharp: [
+        "Du tauschst {kill} gegen {loss}{name_comma}. Wir schrumpfen gemeinsam.",
+        "Auch ich verliere — aber du nicht weniger.",
+        "Schöner Zug. Vor allem für niemanden.",
+        "Patt-Killing. Wir bewegen uns rückwärts.",
+        "Du killst — und blutest mit. Faszinierend.",
+        "{loss} eigene für {kill} meine. Mathematik nach Pyrrhos.",
+      ],
+    },
+    
     // Trigger BAD_TRADE — Spieler bildet Wort, verliert dabei mehr eigene als er gegnerische killt
     bad_trade: {
       nice: [
@@ -3959,10 +4001,23 @@ fullReset();render();
         if(txt){ showBox(txt); return; }
       }
       
-      // GOOD_KILLING: Spieler killt 3+ Bot-Steine ohne Wort — Anerkennung
-      if(opts.killsCount >= 3){
-        const txt = pick('good_killing', {kill: opts.killsCount});
-        if(txt){ showBox(txt); return; }
+      // KILLING-BILANZ: differenziertes Lob/Warnung je nach Bilanz
+      // netto = killsCount - playerLoss
+      // GOOD_KILLING: 3+ Kills UND netto >= +2 → echtes Killing wert
+      // BAD_KILLING: 1+ Kills UND netto <= +1 → Patt oder Verlust beim Killen
+      if(typeof opts.killsCount === 'number' && opts.killsCount >= 1){
+        const _loss = (typeof opts.playerLoss === 'number') ? opts.playerLoss : 0;
+        const _net = opts.killsCount - _loss;
+        
+        if(opts.killsCount >= 3 && _net >= 2){
+          // Echtes Killing — Anerkennung
+          const txt = pick('good_killing', {kill: opts.killsCount, loss: _loss});
+          if(txt){ showBox(txt); return; }
+        } else if(_net <= 1){
+          // Patt oder Verlust beim Killen — didaktischer Hinweis
+          const txt = pick('bad_killing', {kill: opts.killsCount, loss: _loss, net: _net});
+          if(txt){ showBox(txt); return; }
+        }
       }
       
       // Trigger 7: drei Züge in Folge ohne Wort
@@ -4213,5 +4268,23 @@ fullReset();render();
   }
 })();
 
+
+// === TEMPORARY DEBUG OVERLAY — entfernen wenn Bug gefixt ===
+window.SHOVE_DEBUG = {
+  show(text){
+    let el = document.getElementById('shoveDebugBox');
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'shoveDebugBox';
+      el.style.cssText = 'position:fixed;top:60px;left:8px;right:8px;background:rgba(220,40,40,.92);color:#fff;font-family:monospace;font-size:11px;padding:10px 12px;border-radius:6px;z-index:99999;line-height:1.5;white-space:pre-wrap;max-height:200px;overflow:auto;box-shadow:0 4px 16px rgba(0,0,0,.5)';
+      document.body.appendChild(el);
+    }
+    const ts = new Date().toLocaleTimeString();
+    el.textContent = '['+ts+'] ' + text;
+    clearTimeout(el._timer);
+    el._timer = setTimeout(()=>{ el.style.display='none'; }, 12000);
+    el.style.display = 'block';
+  }
+};
 </script>
 </body>
