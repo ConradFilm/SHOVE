@@ -925,7 +925,7 @@ function fullReset(){
   if(revealTimer)clearTimeout(revealTimer);revealTimer=null;
   if(_wordOverlay){_wordOverlay.remove();_wordOverlay=null;}
   board={};turn=P1;history=[];comment="";commentCls="";wordHLMap={};
-  moveNum=0;_botMoveCount=0;gameEnding=false;hPhase="idle";hSel=null;hDest=null;hJumpDone=false;kiSelPos=null;
+  moveNum=0;_botMoveCount=0;gameEnding=false;_gameWinner=null;hPhase="idle";hSel=null;hDest=null;hJumpDone=false;kiSelPos=null;
   pendingNextTurn=null;returnedKeys=new Set();prevBoard=null;postPushBoard=null;
   gameStats={p1elim:0,p1words:0,p1ret:0,p2elim:0,p2words:0,p2ret:0,missedMoves:[]};
   const z=document.getElementById("wordZoneMob");if(z)z.innerHTML="";
@@ -1745,18 +1745,11 @@ function checkGameEnd(){
     :`<b style="color:#ef4444">Bot gewinnt.</b> Du hast noch ${lCount} Buchstabe${lCount!==1?"n":""} übrig.`;
   commentCls="gold";wordHLMap={};activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();render();
   setTimeout(()=>{simPhase="gameover";
-    // SHOVECHAT: announce game end - check who won
+    // SHOVECHAT: announce game end — use the already-computed _gameWinner
+    // (correctly handles "both at 3" tie: the mover wins)
     if(window.SHOVECHAT){
       try{
-        let oCount=0, vCount=0;
-        for(const k in board){
-          if(board[k] && board[k].owner){
-            if(board[k].owner===humanPlayer) oCount++;
-            else vCount++;
-          }
-        }
-        // Player wins if they still have stones, lost if at/below 3
-        const playerWon = oCount > 3;
+        const playerWon = _gameWinner === humanPlayer;
         window.SHOVECHAT.onGameEnd(playerWon);
       }catch(e){}
     }
@@ -1852,6 +1845,9 @@ function humanDoPush(push){
   render();
   animateSlidePush(push,()=>{
     board=applyPush(board,_pushSnap);postPushBoard=JSON.parse(JSON.stringify(board));
+    // CRITICAL: lastCompleted must be set BEFORE checkGameEnd so the tie-break logic 
+    // (both at <=3) correctly identifies the human as the mover.
+    lastCompleted="human";
     if(checkGameEnd()){render();return;}
     const afterWords=findAllWords(board);const newWords=getNewWords(_beforeWordsSnap,afterWords);
     const _snapHiddenWord=_hiddenWord;const _snapHiddenBoard=_hiddenBoard?JSON.parse(JSON.stringify(_hiddenBoard)):null;
@@ -1979,8 +1975,10 @@ function humanDoPush(push){
     // Word-destroyed check: did the player kill any of bot's recent words?
     if(window.SHOVECHAT){
       const _destroyed=window.SHOVECHAT.checkBotWordDestroyed(board);
+      // Compute playerLoss: how many of player's own stones fell off
+      const _playerLoss = push.result.removed.filter(x=>x.owner===humanPlayer).length;
       if(_destroyed){ window.SHOVECHAT.onBoardDelta({destroyedBotWord:true}); }
-      else { window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false}); }
+      else { window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss}); }
       // === FALLE-DETEKTION === Endphase aktiv und Bot könnte im nächsten Zug viele Spieler-Steine eliminieren?
       try {
         const _hCount = (function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
@@ -2200,6 +2198,8 @@ function humanAITurn(){
       animateFall(best.push);kiSelPos=null;render();
       animateSlidePush(best.push,()=>{
         board=applyPush(board,best.push);postPushBoard=JSON.parse(JSON.stringify(board));
+        // CRITICAL: lastCompleted must be set BEFORE checkGameEnd
+        lastCompleted="bot";
         if(checkGameEnd()){render();return;}
         const nw2=getNewWords(bw2,findAllWords(board));
         const kills=best.push.result.removed.filter(x=>x.owner!==aiPlayer).length;
@@ -2388,6 +2388,8 @@ function humanAITurn(){
       animateFall(best.push);kiSelPos=null;render();
       animateSlidePush(best.push,()=>{
         board=applyPush(board,best.push);postPushBoard=JSON.parse(JSON.stringify(board));
+        // CRITICAL: lastCompleted must be set BEFORE checkGameEnd
+        lastCompleted="bot";
         if(checkGameEnd()){render();return;}
         const nw2=getNewWords(bw2,findAllWords(board));
         const kills=best.push.result.removed.filter(x=>x.owner!==aiPlayer).length;
@@ -3468,6 +3470,37 @@ fullReset();render();
       ],
     },
     
+    // Trigger BAD_TRADE — Spieler bildet Wort, verliert dabei mehr eigene als er gegnerische killt
+    bad_trade: {
+      nice: [
+        "Du hast ein Wort gebildet — aber {loss} eigene Buchstaben verloren und nur {kill} zurückbekommen{name_comma}. Schau den Zug nochmal an.",
+        "Bilanz nicht ideal: du verlierst netto {net} Buchstaben mit diesem Zug. Mit ZURÜCK probier eine andere Richtung.",
+        "Ein Wort ist gut — aber hier hat es mehr gekostet als gebracht. Schau nochmal hin.",
+        "Du gewinnst {kill} Buchstaben, verlierst aber {loss}. Das hilft mehr mir als dir.",
+        "Mit ZURÜCK kannst du dich neu orientieren{name_comma} — netto -{net} ist nicht dein Ziel.",
+        "Pass auf: du opferst hier {loss} eigene für nur {kill} meine. Geht besser.",
+        "Wort gebildet — aber zum Preis von {loss} eigenen Buchstaben gegen {kill} meine. Schau nochmal.",
+        "Du baust mir gerade beim Auffüllen{name_comma}. Mit ZURÜCK versuch's anders.",
+      ],
+      default: [
+        "Bilanz: minus {net} Buchstaben{name_comma}.",
+        "Wort gebildet, aber netto verloren — minus {net}.",
+        "Zu viel eigenes Opfer. Minus {net} netto.",
+        "Du gewinnst {kill}, verlierst {loss}. Bilanz für mich.",
+        "Selbstopfer-Wort{name_comma}. Netto minus {net} für dich.",
+        "Wort kostet dich mehr als es bringt: -{net} netto.",
+      ],
+      sharp: [
+        "Du hilfst mir gerade{name_comma}. Ich verliere {kill}, du verlierst {loss}.",
+        "Schöner Zug. Vor allem für mich.",
+        "Selbstopfer-Wort. Ich nehme das gern.",
+        "Du baust mir das Brett auf. Danke{name_comma}.",
+        "Wort gebildet, aber {loss} eigene gegen {kill} von mir. Mathematik ist auf meiner Seite.",
+        "Ich nehme das Geschenk an: {loss} deine, {kill} meine.",
+        "Wort? Ja. Bilanz? Eher nicht{name_comma}.",
+      ],
+    },
+    
     // Trigger 3 — Spieler zerstört Bot-Wort
     word_destroyed: {
       sharp: [
@@ -3772,13 +3805,22 @@ fullReset();render();
     STATE.used.add(chosen);
     STATE.lastTrigger = triggerKey;
     
-    // Fill in {loc} and {gain} placeholders if present
+    // Fill in placeholders
     let result = fmtName(chosen);
     if(opts && opts.location){
       result = result.replace(/\{loc\}/g, opts.location);
     }
     if(opts && typeof opts.missedGain !== 'undefined'){
       result = result.replace(/\{gain\}/g, String(opts.missedGain));
+    }
+    if(opts && typeof opts.kill !== 'undefined'){
+      result = result.replace(/\{kill\}/g, String(opts.kill));
+    }
+    if(opts && typeof opts.loss !== 'undefined'){
+      result = result.replace(/\{loss\}/g, String(opts.loss));
+    }
+    if(opts && typeof opts.net !== 'undefined'){
+      result = result.replace(/\{net\}/g, String(opts.net));
     }
     return result;
   }
@@ -3854,12 +3896,20 @@ fullReset();render();
       STATE.consecutiveNoWord = 0;
       STATE.gameWordsCount++;
       
+      // BAD_TRADE: Wort gebildet, aber mehr eigene verloren als gegnerische gekillt
+      // Schwelle: netto -1 (also playerLoss > killsCount)
+      if(typeof opts.playerLoss === 'number' && opts.playerLoss > opts.killsCount){
+        const _net = opts.playerLoss - opts.killsCount;
+        const txt = pick('bad_trade', {kill: opts.killsCount, loss: opts.playerLoss, net: _net});
+        if(txt){ showBox(txt); return; }
+      }
+      
       if(opts.killsCount >= 3){
         const txt = pick('many_kills');
         if(txt){ showBox(txt); return; }
       }
       
-      // Trigger 16: Endgame-Falle (nur Nice + Great)
+      // Endgame-Falle (nur Nice + Great)
       const lvl = (typeof kiLevel !== 'undefined') ? kiLevel : 2;
       if(lvl !== 3){
         const trapLoc = detectEndgameTrap();
