@@ -814,6 +814,9 @@ function renderGameover(){
       prev.zugCount=(prev.zugCount||1)+1;
       // Keep first board — earliest visibility is most informative
       if(!prev.hiddenBoard && m.hiddenBoard) prev.hiddenBoard=m.hiddenBoard;
+      // Track maximum kiKills (best alternative across the group)
+      if((m.kiKills||0)>(prev.kiKills||0)) prev.kiKills=m.kiKills;
+      // Keep first humanKills (the move where it first appeared)
     } else {
       grouped.push({...m, firstMove:m.moveNum, lastMove:m.moveNum, zugCount:1});
     }
@@ -836,6 +839,10 @@ function renderGameover(){
             <div style="flex:0 0 auto;text-align:left">
               <span style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:1px">HIDDEN WORD</span>
               <div style="margin-top:4px"><span style="color:#fbbf24;font-size:13px;font-weight:900;letter-spacing:1px">${m.hiddenWord}</span></div>
+              ${(typeof m.kiKills==='number'&&typeof m.humanKills==='number'&&m.kiKills>m.humanKills)?`
+                <div style="margin-top:6px;font-size:9px;color:rgba(255,255,255,.55);letter-spacing:.5px;line-height:1.4">
+                  <span style="color:rgba(255,255,255,.85)">+${m.kiKills-m.humanKills}</span> Buchstaben<br>mehr möglich
+                </div>`:''}
             </div>
             ${m.hiddenBoard?renderMiniBoard(m.hiddenBoard,humanPlayer,m.hiddenWord):''}
           </div>`
@@ -1891,18 +1898,23 @@ function humanDoPush(push){
                 jumpTo:ko.jumped?{x:ko.jump.toX,y:ko.jump.toY}:null});
               // SHOVECHAT: a word WAS possible — retroactively show the lerntipp
               if(window.SHOVECHAT){
-                let _missedLoc='';
-                if(kw && kw.length){
-                  const _w0=kw.reduce((a,b)=>b.word.length>a.word.length?b:a,kw[0]);
-                  if(_w0.dir==='row'){
-                    const _ry=parseInt(_w0.cells[0].split(',')[1])+1;
-                    _missedLoc='Reihe '+_ry;
-                  } else {
-                    const _cx=parseInt(_w0.cells[0].split(',')[0]);
-                    _missedLoc='Spalte '+'ABCDEFG'[_cx];
+                // Only fire trigger 1 if the missed word would have brought MEANINGFULLY more kills
+                // than the player actually got. Threshold: 3+ more stones.
+                const _gain = kk - kills;
+                if(_gain >= 3){
+                  let _missedLoc='';
+                  if(kw && kw.length){
+                    const _w0=kw.reduce((a,b)=>b.word.length>a.word.length?b:a,kw[0]);
+                    if(_w0.dir==='row'){
+                      const _ry=parseInt(_w0.cells[0].split(',')[1])+1;
+                      _missedLoc='Reihe '+_ry;
+                    } else {
+                      const _cx=parseInt(_w0.cells[0].split(',')[0]);
+                      _missedLoc='Spalte '+'ABCDEFG'[_cx];
+                    }
                   }
+                  window.SHOVECHAT.onPlayerMove({wordsFormed:0, killsCount:kills, longestWord:'', wordPossibleButMissed:true, location:_missedLoc, missedGain:_gain});
                 }
-                window.SHOVECHAT.onPlayerMove({wordsFormed:0, killsCount:kills, longestWord:'', wordPossibleButMissed:true, location:_missedLoc});
               }
             }
           }
@@ -1934,18 +1946,23 @@ function humanDoPush(push){
                 jumpTo:ko.jumped?{x:ko.jump.toX,y:ko.jump.toY}:null});
               // SHOVECHAT: a word WAS possible — retroactively show the lerntipp
               if(window.SHOVECHAT){
-                let _missedLoc='';
-                if(kw && kw.length){
-                  const _w0=kw.reduce((a,b)=>b.word.length>a.word.length?b:a,kw[0]);
-                  if(_w0.dir==='row'){
-                    const _ry=parseInt(_w0.cells[0].split(',')[1])+1;
-                    _missedLoc='Reihe '+_ry;
-                  } else {
-                    const _cx=parseInt(_w0.cells[0].split(',')[0]);
-                    _missedLoc='Spalte '+'ABCDEFG'[_cx];
+                // Only fire trigger 1 if the missed word would have brought MEANINGFULLY more kills
+                // than the player actually got. Threshold: 3+ more stones.
+                const _gain = kk - kills;
+                if(_gain >= 3){
+                  let _missedLoc='';
+                  if(kw && kw.length){
+                    const _w0=kw.reduce((a,b)=>b.word.length>a.word.length?b:a,kw[0]);
+                    if(_w0.dir==='row'){
+                      const _ry=parseInt(_w0.cells[0].split(',')[1])+1;
+                      _missedLoc='Reihe '+_ry;
+                    } else {
+                      const _cx=parseInt(_w0.cells[0].split(',')[0]);
+                      _missedLoc='Spalte '+'ABCDEFG'[_cx];
+                    }
                   }
+                  window.SHOVECHAT.onPlayerMove({wordsFormed:0, killsCount:kills, longestWord:'', wordPossibleButMissed:true, location:_missedLoc, missedGain:_gain});
                 }
-                window.SHOVECHAT.onPlayerMove({wordsFormed:0, killsCount:kills, longestWord:'', wordPossibleButMissed:true, location:_missedLoc});
               }
             }
           }
@@ -3416,57 +3433,38 @@ fullReset();render();
   // Each pool: array of templates. {name} = player name (used 20-30%).
   
   const POOLS = {
-    // Trigger 1 — kein Wort, aber Wort möglich
+    // Trigger 1 — kein Wort gebildet, aber Wort möglich gewesen mit DEUTLICH mehr Kills (>=3 mehr).
+    // Tonalität: bilanzierend, informativ — NICHT belehrend.
     no_word_possible: {
-      // NICE: didactic, warm, with location hints (filled at runtime)
+      // NICE: warm, mit Ortsangabe und konkreter Zahl
       nice: [
-        "Schau nochmal hin{name_comma}. Da war ein Wort.",
-        "Magst du nochmal hinschauen? Mit ZURÜCK kannst du den Zug neu spielen.",
-        "Da liegt was. Probier's nochmal{name_comma}.",
-        "Hinschauen lohnt sich. Es gibt einen Zug der ein Wort baut.",
-        "Mit ZURÜCK gehst du nochmal hin. Du wirst es sehen.",
-        "Ein Wort wartete auf dich. Geh zurück und such nochmal{name_comma}.",
-        "Versuch's nochmal — manchmal sieht man im zweiten Anlauf mehr.",
-        "Da war eine Möglichkeit. ZURÜCK und probier eine andere Richtung.",
-        "Ein Wort hat sich versteckt. Du findest es{name_comma}.",
-        "Du warst dicht dran. Schau die Reihen und Spalten nochmal an.",
-        "Killen alleine reicht nicht — bau ein Wort. Es war eines da.",
-        "Lass dir Zeit. Drücke ZURÜCK und schau das Brett in Ruhe nochmals an.",
-        "Da steckt ein Wort. Geh zurück, schau genau{name_comma}.",
-        "Das Brett verbirgt ein Wort. Mit ZURÜCK probier's anders.",
-        "Es war ein Zug möglich der ein Wort gebaut hätte. Versuch ihn zu finden.",
+        "In {loc} hättest du {gain} Buchstaben mehr gewinnen können{name_comma}.",
+        "Mit ZURÜCK in {loc} — da liegen {gain} Buchstaben mehr drin.",
+        "Du hast gut gespielt, aber in {loc} war noch mehr drin: {gain} Buchstaben mehr.",
+        "Schau {loc} nochmal{name_comma} — {gain} mehr für dich, wenn du willst.",
+        "{loc} verbirgt {gain} mehr Buchstaben für dich. ZURÜCK lohnt sich.",
+        "Da war Mehrgewinn drin: {gain} Buchstaben in {loc}. Mit ZURÜCK probieren.",
+        "Du gewinnst mit deinem Zug. Mit dem Wort in {loc} hättest du {gain} mehr gewonnen{name_comma}.",
+        "Solider Zug — aber in {loc} lagen {gain} weitere Buchstaben für dich bereit.",
       ],
-      // NICE WITH LOCATION — uses {loc} placeholder, filled with "Reihe 3" or "Spalte D"
       nice_loc: [
-        "Schau nochmal in {loc} hin{name_comma}. Da liegt ein Wort.",
-        "{loc} hat ein Wort versteckt. Drücke ZURÜCK und probier's da.",
-        "In {loc} wartet etwas auf dich. Hinschauen lohnt sich.",
-        "{loc} — da war was{name_comma}. Geh nochmal hin.",
-        "Ein Wort liegt in {loc}. Du musst nur den richtigen Schub finden.",
-        "Versuch's mit ZURÜCK und schau {loc} genauer an.",
-        "{loc} verbirgt ein Wort. Du findest es.",
-        "Da war ein Wort in {loc}. Probier einen anderen Zug.",
+        "In {loc} hättest du {gain} Buchstaben mehr gewinnen können{name_comma}.",
+        "Mit ZURÜCK in {loc} — da liegen {gain} Buchstaben mehr drin.",
+        "Schau {loc} nochmal{name_comma} — {gain} mehr für dich, wenn du willst.",
+        "{loc} verbirgt {gain} mehr Buchstaben für dich.",
+        "Da war Mehrgewinn drin: {gain} Buchstaben in {loc}.",
+        "Du gewinnst mit deinem Zug. Mit dem Wort in {loc} hättest du {gain} mehr gewonnen.",
       ],
-      // GREAT/SHARP: existing pool — direkter, weniger pädagogisch
+      // GREAT/SHARP: knapper, direkter
       default: [
-        "Da war ein Wort{name_comma}.",
-        "Du warst nah dran. ZURÜCK lohnt sich.",
-        "Ein Wort war möglich. Schade.",
-        "Da lag was.",
-        "Mit ZURÜCK siehst du nochmal genau hin.",
-        "Manchmal liegt ein Wort einen Schub neben deiner Wahl.",
-        "Schau die Reihe nochmal an.",
-        "Versuch's anders. Da war ein Wort.",
-        "Pass auf{name_comma}.",
-        "Killen ohne Wort — das schadet dir mehr als mir.",
-        "Du hast gekillt{name_comma}, aber kein Wort. Probier's nochmal.",
-        "Was du gesucht hast — es war da.",
-        "Eine Reihe weiter, und du hättest ein Wort gehabt.",
-        "Hier verschenkst du was.",
-        "Manchmal ist der erste Zug nicht der beste.",
-        "Ich glaube{name_comma}, du hast es gesehen. Nur zu spät.",
-        "Du hast deine Chance nicht genutzt.",
-        "Killen alleine bringt dich nicht weiter — das weißt du?",
+        "Mehrgewinn möglich gewesen: {gain} Buchstaben mehr in {loc}.",
+        "{gain} Buchstaben mehr lagen in {loc} bereit.",
+        "Du hast gut gespielt — in {loc} waren noch {gain} mehr drin.",
+        "ZURÜCK und {loc} schauen — {gain} weitere Buchstaben für dich.",
+        "Solider Zug. Aber {loc} hatte {gain} mehr für dich.",
+        "Mit einem Wort in {loc}: {gain} Buchstaben extra.",
+        "Du killst — aber in {loc} hättest du killen UND ein Wort bauen können. {gain} mehr.",
+        "Knapp daneben{name_comma}. {gain} Buchstaben mehr lagen in {loc}.",
       ],
     },
     
@@ -3774,10 +3772,13 @@ fullReset();render();
     STATE.used.add(chosen);
     STATE.lastTrigger = triggerKey;
     
-    // Fill in {loc} placeholder if present
+    // Fill in {loc} and {gain} placeholders if present
     let result = fmtName(chosen);
     if(opts && opts.location){
       result = result.replace(/\{loc\}/g, opts.location);
+    }
+    if(opts && typeof opts.missedGain !== 'undefined'){
+      result = result.replace(/\{gain\}/g, String(opts.missedGain));
     }
     return result;
   }
@@ -3828,7 +3829,7 @@ fullReset();render();
       
       // Trigger 1: kein wort gebildet, aber wort möglich
       if(opts.wordPossibleButMissed){
-        const txt = pick('no_word_possible', {location: opts.location});
+        const txt = pick('no_word_possible', {location: opts.location, missedGain: opts.missedGain});
         if(txt){ showBox(txt); return; }
       }
       
