@@ -3948,18 +3948,22 @@ fullReset();render();
       document.body.appendChild(box);
     }
     
-    // Position the box visually below the board.
-    // Use the board element's bottom edge to align — query it fresh each time
-    // because #app might have been rebuilt and the previous board reference is stale.
-    const board = document.querySelector('.board');
-    let topPx = 'auto';
-    if(board){
-      const rect = board.getBoundingClientRect();
-      topPx = (window.scrollY + rect.bottom + 14) + 'px';
-    }
-    
-    box.style.cssText = 'position:absolute;top:' + topPx + ';left:50%;transform:translateX(-50%);max-width:560px;width:calc(100% - 32px);padding:11px 14px;border-left:2px solid #6dc7c7;background:rgba(109,199,199,.10);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:0 6px 6px 0;animation:shoveBotChatIn .35s ease-out;z-index:50;display:block';
+    // Set content and base styles, but keep INVISIBLE (opacity 0) until position is correct.
+    // This prevents the visible "jump" from default position to final position.
+    box.style.cssText = 'position:absolute;top:0;left:50%;transform:translateX(-50%);max-width:560px;width:calc(100% - 32px);padding:11px 14px;border-left:2px solid #6dc7c7;background:rgba(109,199,199,.10);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:0 6px 6px 0;z-index:50;display:block;opacity:0;transition:opacity .25s ease-out';
     box.innerHTML = '<div style="font-size:9px;letter-spacing:1.5px;color:#6dc7c7;margin-bottom:3px;font-weight:600">BOT</div><div style="font-size:13px;color:rgba(255,255,255,.82);line-height:1.5;font-style:italic">' + text + '</div>';
+    
+    // Wait for layout to stabilize, then set position AND fade in.
+    // requestAnimationFrame ensures the browser has computed layout for the board.
+    requestAnimationFrame(()=>{
+      const board = document.querySelector('.board');
+      if(board){
+        const rect = board.getBoundingClientRect();
+        box.style.top = (window.scrollY + rect.bottom + 14) + 'px';
+      }
+      // Now fade in at the correct position
+      box.style.opacity = '1';
+    });
   }
   
   function hideBox(){
