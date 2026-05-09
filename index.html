@@ -1977,8 +1977,17 @@ function humanDoPush(push){
       const _destroyed=window.SHOVECHAT.checkBotWordDestroyed(board);
       // Compute playerLoss: how many of player's own stones fell off
       const _playerLoss = push.result.removed.filter(x=>x.owner===humanPlayer).length;
-      if(_destroyed){ window.SHOVECHAT.onBoardDelta({destroyedBotWord:true}); }
-      else { window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss}); }
+      // Bilanz-Trigger (Bad-Trade oder Null-Trade) haben Vorrang vor Wort-zerstört.
+      // Wenn der Spieler ein Wort gebildet hat aber netto verloren oder null gemacht hat,
+      // ist das die wichtigere Info als die Bot-Reaktion auf sein eigenes zerstörtes Wort.
+      const _isBalanceIssue = newWords.length > 0 && _playerLoss >= kills && kills > 0;
+      if(_isBalanceIssue){
+        window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
+      } else if(_destroyed){
+        window.SHOVECHAT.onBoardDelta({destroyedBotWord:true});
+      } else {
+        window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
+      }
       // === FALLE-DETEKTION === Endphase aktiv und Bot könnte im nächsten Zug viele Spieler-Steine eliminieren?
       try {
         const _hCount = (function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
@@ -3501,6 +3510,36 @@ fullReset();render();
       ],
     },
     
+    // Trigger NULL_TRADE — Spieler bildet Wort, opfert genau so viele eigene wie er gegnerische killt
+    null_trade: {
+      nice: [
+        "Bilanz null{name_comma}. Du hast nichts gewonnen, aber auch nichts verloren.",
+        "Ein Wort, aber kein Effekt. Mit ZURÜCK kannst du was anderes versuchen.",
+        "Du hast genauso viel geopfert wie zurückgewonnen. War das geplant?",
+        "Aufwand für null Gewinn{name_comma}. Schau den Zug nochmal an.",
+        "Du tauschst {kill} gegen {kill}. Das bewegt nichts.",
+        "Ein Patt-Zug. Mit ZURÜCK probier eine Richtung mit mehr Wirkung.",
+        "Wort gebildet — aber Bilanz null. Da war mehr drin.",
+        "Du opferst {kill} eigene, killst {kill} meine. Es bleibt wie es war.",
+      ],
+      default: [
+        "Bilanz null{name_comma}.",
+        "Ein Wort, kein Effekt.",
+        "Patt-Zug — du tauschst {kill} gegen {kill}.",
+        "Du opferst genauso viel wie du killst. Aufwand ohne Gewinn.",
+        "Null-Bilanz{name_comma}. War da mehr möglich?",
+        "Wort gebildet, aber netto null.",
+      ],
+      sharp: [
+        "Eleganter Tanz{name_comma}. Bilanz null, aber stilvoll.",
+        "Du tauschst {kill} gegen {kill}. Wir bewegen uns auf der Stelle.",
+        "Schöne Choreographie. Auch wenn nichts dabei rauskommt.",
+        "Patt. Aber so spielt sich's wenigstens unterhaltsam.",
+        "Bilanz null. Auch eine Aussage.",
+        "Du opferst soviel du killst{name_comma}. Stillstand mit Stil.",
+      ],
+    },
+    
     // Trigger 3 — Spieler zerstört Bot-Wort
     word_destroyed: {
       sharp: [
@@ -3901,6 +3940,13 @@ fullReset();render();
       if(typeof opts.playerLoss === 'number' && opts.playerLoss > opts.killsCount){
         const _net = opts.playerLoss - opts.killsCount;
         const txt = pick('bad_trade', {kill: opts.killsCount, loss: opts.playerLoss, net: _net});
+        if(txt){ showBox(txt); return; }
+      }
+      
+      // NULL_TRADE: Wort gebildet, genau so viele eigene wie gegnerische gefallen
+      // (nur wenn killsCount > 0 — sonst trivial 0=0)
+      if(typeof opts.playerLoss === 'number' && opts.playerLoss === opts.killsCount && opts.killsCount > 0){
+        const txt = pick('null_trade', {kill: opts.killsCount, loss: opts.playerLoss});
         if(txt){ showBox(txt); return; }
       }
       
