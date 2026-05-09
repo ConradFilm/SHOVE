@@ -3229,22 +3229,31 @@ fullReset();render();
     }
   }
   
-  async function toggle(){
+  // Synchronous state flip — returns new state immediately so the UI updates
+  // without waiting for async audio context setup. This makes repeated taps safe:
+  // each click flips state predictably, the async audio work runs in background.
+  function toggle(){
     if(!STATE.on){
-      const ok = await ensureCtx();
-      if(!ok) return false;
-      setupChains();
+      // Switch ON synchronously; audio context setup runs in background
       STATE.on = true;
-      STATE.meerPlaying = true;
-      STATE.meerIdx = 0;
-      nextMeer();
-      setTimeout(()=>{
-        STATE.wellePlaying = true;
-        STATE.welleIdx = 0;
-        nextWelle();
-      }, 3000);
+      // Kick off audio setup async (no await — fire and forget)
+      (async ()=>{
+        const ok = await ensureCtx();
+        if(!ok || !STATE.on) return; // bail if context failed or user already toggled off
+        setupChains();
+        STATE.meerPlaying = true;
+        STATE.meerIdx = 0;
+        nextMeer();
+        setTimeout(()=>{
+          if(!STATE.on) return; // user toggled off in the meantime
+          STATE.wellePlaying = true;
+          STATE.welleIdx = 0;
+          nextWelle();
+        }, 3000);
+      })();
       return true;
     } else {
+      // Switch OFF synchronously; fade-out runs in background
       STATE.on = false;
       STATE.meerPlaying = false; STATE.wellePlaying = false; STATE.endgame = false;
       if(STATE.meerTimer) clearTimeout(STATE.meerTimer);
@@ -3400,8 +3409,8 @@ fullReset();render();
     btn.title = 'Klangwelt an/aus';
     btn.innerHTML = SVG_OFF;
     btn.style.cssText = 'position:fixed;top:14px;right:14px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.25);color:rgba(255,255,255,.5);cursor:pointer;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:inherit;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:all .25s ease;-webkit-tap-highlight-color:transparent;touch-action:manipulation;padding:0';
-    btn.addEventListener('click', async ()=>{
-      const isOn = await toggle();
+    btn.addEventListener('click', ()=>{
+      const isOn = toggle();
       if(isOn){
         btn.style.borderColor = '#6dc7c7';
         btn.style.color = '#6dc7c7';
