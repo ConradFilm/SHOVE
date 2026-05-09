@@ -1982,10 +1982,14 @@ function humanDoPush(push){
       // ist das die wichtigere Info als die Bot-Reaktion auf sein eigenes zerstörtes Wort.
       const _isBalanceIssue = newWords.length > 0 && _playerLoss >= kills && kills > 0;
       if(_isBalanceIssue){
+        // Wort gebildet, aber Bilanz-Problem — bilanzierender Kommentar
         window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
-      } else if(_destroyed){
+      } else if(_destroyed && newWords.length > 0){
+        // Wort gebildet UND Bot-Wort zerstört — emotionale Reaktion des Bots
         window.SHOVECHAT.onBoardDelta({destroyedBotWord:true});
       } else {
+        // Alle anderen Fälle (insbesondere: KEIN Wort gebildet, auch wenn Bot-Wort zerstört wurde)
+        // → onPlayerMove sorgt für good_killing, three_no_word, no_word_possible, etc.
         window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
       }
       // === FALLE-DETEKTION === Endphase aktiv und Bot könnte im nächsten Zug viele Spieler-Steine eliminieren?
