@@ -2204,6 +2204,21 @@ function humanAITurn(){
     // Execute push helper
     const doBotPush=()=>{
       pendingNextTurn=null;
+      
+      // === FILMZITAT vor finalem Bot-Sieg-Zug ===
+      // Wenn dieser Zug den Spieler unter 4 Buchstaben drückt → Spruch zeigen, 3 Sek warten
+      if(window.SHOVECHAT && window.SHOVECHAT.showFinalQuote && window.SHOVECHAT.isOn && window.SHOVECHAT.isOn() && best.push.result && best.push.result.removed){
+        const _hCnt=(function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
+        const _hKill=best.push.result.removed.filter(r=>r.owner===humanPlayer).length;
+        if(_hCnt - _hKill < 4 && !doBotPush._quoteShown){
+          doBotPush._quoteShown = true;// prevent re-trigger when this function is called again after delay
+          window.SHOVECHAT.showFinalQuote();
+          setTimeout(()=>{ doBotPush._quoteShown = false; doBotPush(); }, 3000);
+          return;
+        }
+        doBotPush._quoteShown = false;
+      }
+      
       kiWordHL={};// keep word-box visible through push + stone return
       moveNum++;_botMoveCount++;
       const bw2=findAllWords(board);prevBoard=JSON.parse(JSON.stringify(board));
@@ -2394,6 +2409,21 @@ function humanAITurn(){
     // Execute push helper
     const doBotPush=()=>{
       pendingNextTurn=null;
+      
+      // === FILMZITAT vor finalem Bot-Sieg-Zug ===
+      // Wenn dieser Zug den Spieler unter 4 Buchstaben drückt → Spruch zeigen, 3 Sek warten
+      if(window.SHOVECHAT && window.SHOVECHAT.showFinalQuote && window.SHOVECHAT.isOn && window.SHOVECHAT.isOn() && best.push.result && best.push.result.removed){
+        const _hCnt=(function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
+        const _hKill=best.push.result.removed.filter(r=>r.owner===humanPlayer).length;
+        if(_hCnt - _hKill < 4 && !doBotPush._quoteShown){
+          doBotPush._quoteShown = true;// prevent re-trigger when this function is called again after delay
+          window.SHOVECHAT.showFinalQuote();
+          setTimeout(()=>{ doBotPush._quoteShown = false; doBotPush(); }, 3000);
+          return;
+        }
+        doBotPush._quoteShown = false;
+      }
+      
       kiWordHL={};// keep word-box visible through push + stone return
       moveNum++;_botMoveCount++;
       const bw2=findAllWords(board);prevBoard=JSON.parse(JSON.stringify(board));
@@ -4242,6 +4272,52 @@ if(txt){ showBox(txt); return; }
   }
   
   // Public API
+  // === FILMZITAT vor finalem Bot-Sieg-Zug ===
+  const FINAL_QUOTES = [
+    // Original 10
+    { text: "Hasta la vista, Baby.",                                                     src: "Terminator 2 · 1991" },
+    { text: "I'll be back.",                                                              src: "The Terminator · 1984" },
+    { text: "Consider that a divorce.",                                                   src: "Total Recall · 1990" },
+    { text: "I'm your Huckleberry.",                                                      src: "Tombstone · 1993" },
+    { text: "We're gonna need a bigger boat.",                                            src: "Der weiße Hai · 1975" },
+    { text: "Say hello to my little friend.",                                             src: "Scarface · 1983" },
+    { text: "Frankly, my dear, I don't give a damn.",                                     src: "Vom Winde verweht · 1939" },
+    { text: "Here's looking at you, kid.",                                                src: "Casablanca · 1942" },
+    { text: "You shall not pass!",                                                        src: "Der Herr der Ringe · 2001" },
+    { text: "Bond. James Bond.",                                                          src: "Dr. No · 1962" },
+    // Sergio Leone & SciFi
+    { text: "When you have to shoot, shoot. Don't talk.",                                 src: "Zwei glorreiche Halunken · 1966" },
+    { text: "God's not on our side because he hates idiots.",                             src: "Zwei glorreiche Halunken · 1966" },
+    { text: "There's two kinds of people, my friend: those with loaded guns, and those who dig. You dig.", src: "Zwei glorreiche Halunken · 1966" },
+    { text: "I'm sorry, Dave. I'm afraid I can't do that.",                               src: "2001: Odyssee im Weltraum · 1968" },
+    { text: "We need to go deeper.",                                                      src: "Inception · 2010" },
+    { text: "The spice must flow.",                                                       src: "Dune · 1984" },
+    { text: "Resistance is futile.",                                                      src: "Star Trek: The Next Generation · 1990" },
+  ];
+  
+  function showFinalQuote(){
+    if(!STATE.on) return;
+    const q = FINAL_QUOTES[Math.floor(Math.random() * FINAL_QUOTES.length)];
+    let box = document.getElementById('shoveBotChat');
+    if(!box){
+      box = document.createElement('div');
+      box.id = 'shoveBotChat';
+      document.body.appendChild(box);
+    }
+    box.style.cssText = 'position:absolute;top:0;left:50%;transform:translateX(-50%);max-width:560px;width:calc(100% - 32px);padding:11px 14px;border-left:2px solid #6dc7c7;background:rgba(109,199,199,.10);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:0 6px 6px 0;z-index:50;display:block;opacity:0;transition:opacity .25s ease-out';
+    box.innerHTML = '<div style="font-size:9px;letter-spacing:1.5px;color:#6dc7c7;margin-bottom:5px;font-weight:600">BOT</div>' +
+                    '<div style="font-size:14px;color:rgba(255,255,255,.92);line-height:1.5;font-style:italic">&ldquo;' + q.text + '&rdquo;</div>' +
+                    '<div style="font-size:10px;color:rgba(255,255,255,.45);margin-top:4px;letter-spacing:.5px">— ' + q.src + '</div>';
+    requestAnimationFrame(()=>{
+      const board = document.querySelector('.board');
+      if(board){
+        const rect = board.getBoundingClientRect();
+        box.style.top = (window.scrollY + rect.bottom + 14) + 'px';
+      }
+      box.style.opacity = '1';
+    });
+  }
+  
   function onPlayerEndgameTrap(opts){
     // opts: { location: "Reihe 3" | "Spalte D", killCount: number }
     if(!STATE.on) return;
@@ -4254,6 +4330,7 @@ if(txt){ showBox(txt); return; }
   
   window.SHOVECHAT = {
     onPlayerMove, onBoardDelta, onBotMove, onBackUsed, onGameEnd, onPlayerEndgameTrap,
+    showFinalQuote,
     recordBotWord, checkBotWordDestroyed, reset, setEnabled, isOn, hideBox,
   };
   
