@@ -711,6 +711,7 @@ let botReturnSnap=null;// saved board state before stones return
 let _stonesReturning=false;
 let _hiddenWord=null;// word hidden by findSmartReturnSlots for current turn
 let _gameWinner=null;// P1 or P2, by checkGameEnd
+let _finalQuoteShownThisGame=false;// reset in startGame, true after first film quote
 let _hiddenBoard=null;// board state when hidden word found
 let _humanSacrificed=false;// true when human lost own stones last turn — Sharp forced into defense
 let _lastHumanKills=0;// kills scored by human last turn — for Sharp kadenz matching
@@ -925,7 +926,7 @@ function fullReset(){
   if(revealTimer)clearTimeout(revealTimer);revealTimer=null;
   if(_wordOverlay){_wordOverlay.remove();_wordOverlay=null;}
   board={};turn=P1;history=[];comment="";commentCls="";wordHLMap={};
-  moveNum=0;_botMoveCount=0;gameEnding=false;_gameWinner=null;hPhase="idle";hSel=null;hDest=null;hJumpDone=false;kiSelPos=null;
+  moveNum=0;_botMoveCount=0;gameEnding=false;_gameWinner=null;_finalQuoteShownThisGame=false;hPhase="idle";hSel=null;hDest=null;hJumpDone=false;kiSelPos=null;
   pendingNextTurn=null;returnedKeys=new Set();prevBoard=null;postPushBoard=null;
   gameStats={p1elim:0,p1words:0,p1ret:0,p2elim:0,p2words:0,p2ret:0,missedMoves:[]};
   const z=document.getElementById("wordZoneMob");if(z)z.innerHTML="";
@@ -2208,17 +2209,16 @@ function humanAITurn(){
       pendingNextTurn=null;
       
       // === FILMZITAT vor finalem Bot-Sieg-Zug ===
-      // Wenn dieser Zug den Spieler unter 4 Buchstaben drückt → Spruch zeigen, 3 Sek warten
-      if(window.SHOVECHAT && window.SHOVECHAT.showFinalQuote && window.SHOVECHAT.isOn && window.SHOVECHAT.isOn() && best.push.result && best.push.result.removed){
+      // Pro Spielrunde nur EIN Zitat — _finalQuoteShownThisGame wird in startGame zurückgesetzt
+      if(window.SHOVECHAT && window.SHOVECHAT.showFinalQuote && window.SHOVECHAT.isOn && window.SHOVECHAT.isOn() && best.push.result && best.push.result.removed && !_finalQuoteShownThisGame){
         const _hCnt=(function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
         const _hKill=best.push.result.removed.filter(r=>r.owner===humanPlayer).length;
-        if(_hCnt - _hKill < 4 && !doBotPush._quoteShown){
-          doBotPush._quoteShown = true;// prevent re-trigger when this function is called again after delay
+        if(_hCnt - _hKill < 4){
+          _finalQuoteShownThisGame = true;
           window.SHOVECHAT.showFinalQuote();
-          setTimeout(()=>{ doBotPush._quoteShown = false; doBotPush(); }, 3000);
+          setTimeout(()=>{ doBotPush(); }, 3000);
           return;
         }
-        doBotPush._quoteShown = false;
       }
       
       kiWordHL={};// keep word-box visible through push + stone return
@@ -2233,9 +2233,10 @@ function humanAITurn(){
         const nw2=getNewWords(bw2,findAllWords(board));
         const kills=best.push.result.removed.filter(x=>x.owner!==aiPlayer).length;
         gameStats[aiPlayer===P1?'p1elim':'p2elim']+=kills;
-        // SHOVECHAT: signal bot move
-        if(window.SHOVECHAT){
-          const _chatBotLongest=nw2.length>0?nw2.reduce((a,b)=>b.word.length>a.word.length?b:a,nw2[0]).word:'';
+        // SHOVECHAT signal — verzögert bei Wort-Bildung (nach Wort-Animation), sofort sonst
+        const _chatBotLongest=nw2.length>0?nw2.reduce((a,b)=>b.word.length>a.word.length?b:a,nw2[0]).word:'';
+        if(window.SHOVECHAT && nw2.length===0){
+          // Kein Wort gebildet: Kommentar sofort (keine Animation, die im Weg ist)
           window.SHOVECHAT.onBotMove({killsCount:kills, longestWord:_chatBotLongest});
         }
         if(nw2.length>0){
@@ -2250,6 +2251,8 @@ function humanAITurn(){
           animateWordBirth(nw2,()=>{
             _breathing=false;
             const z=document.getElementById("wordZoneMob");if(z)z.innerHTML="";
+            // Bot-Kommentar JETZT — nach Wort-Animation, damit nichts verdeckt wird
+            if(window.SHOVECHAT) window.SHOVECHAT.onBotMove({killsCount:kills, longestWord:_chatBotLongest});
             // Phase 3: return-ready. Board still highlighted. NEXT active.
             // Save snap here so BACK can restore to this exact state.
             botReturnSnap={
@@ -2413,17 +2416,16 @@ function humanAITurn(){
       pendingNextTurn=null;
       
       // === FILMZITAT vor finalem Bot-Sieg-Zug ===
-      // Wenn dieser Zug den Spieler unter 4 Buchstaben drückt → Spruch zeigen, 3 Sek warten
-      if(window.SHOVECHAT && window.SHOVECHAT.showFinalQuote && window.SHOVECHAT.isOn && window.SHOVECHAT.isOn() && best.push.result && best.push.result.removed){
+      // Pro Spielrunde nur EIN Zitat — _finalQuoteShownThisGame wird in startGame zurückgesetzt
+      if(window.SHOVECHAT && window.SHOVECHAT.showFinalQuote && window.SHOVECHAT.isOn && window.SHOVECHAT.isOn() && best.push.result && best.push.result.removed && !_finalQuoteShownThisGame){
         const _hCnt=(function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
         const _hKill=best.push.result.removed.filter(r=>r.owner===humanPlayer).length;
-        if(_hCnt - _hKill < 4 && !doBotPush._quoteShown){
-          doBotPush._quoteShown = true;// prevent re-trigger when this function is called again after delay
+        if(_hCnt - _hKill < 4){
+          _finalQuoteShownThisGame = true;
           window.SHOVECHAT.showFinalQuote();
-          setTimeout(()=>{ doBotPush._quoteShown = false; doBotPush(); }, 3000);
+          setTimeout(()=>{ doBotPush(); }, 3000);
           return;
         }
-        doBotPush._quoteShown = false;
       }
       
       kiWordHL={};// keep word-box visible through push + stone return
@@ -2438,9 +2440,10 @@ function humanAITurn(){
         const nw2=getNewWords(bw2,findAllWords(board));
         const kills=best.push.result.removed.filter(x=>x.owner!==aiPlayer).length;
         gameStats[aiPlayer===P1?'p1elim':'p2elim']+=kills;
-        // SHOVECHAT: signal bot move
-        if(window.SHOVECHAT){
-          const _chatBotLongest=nw2.length>0?nw2.reduce((a,b)=>b.word.length>a.word.length?b:a,nw2[0]).word:'';
+        // SHOVECHAT signal — verzögert bei Wort-Bildung (nach Wort-Animation), sofort sonst
+        const _chatBotLongest=nw2.length>0?nw2.reduce((a,b)=>b.word.length>a.word.length?b:a,nw2[0]).word:'';
+        if(window.SHOVECHAT && nw2.length===0){
+          // Kein Wort gebildet: Kommentar sofort (keine Animation, die im Weg ist)
           window.SHOVECHAT.onBotMove({killsCount:kills, longestWord:_chatBotLongest});
         }
         if(nw2.length>0){
@@ -2455,6 +2458,8 @@ function humanAITurn(){
           animateWordBirth(nw2,()=>{
             _breathing=false;
             const z=document.getElementById("wordZoneMob");if(z)z.innerHTML="";
+            // Bot-Kommentar JETZT — nach Wort-Animation, damit nichts verdeckt wird
+            if(window.SHOVECHAT) window.SHOVECHAT.onBotMove({killsCount:kills, longestWord:_chatBotLongest});
             // Phase 3: return-ready. Board still highlighted. NEXT active.
             // Save snap here so BACK can restore to this exact state.
             botReturnSnap={
