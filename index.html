@@ -1347,6 +1347,8 @@ function getWordCellKeys(){
 function applyWordHL(newWords){
   wordHLMap={};
   if(newWords.length>0 && window.SHOVEAUDIO) window.SHOVEAUDIO.playWord();
+  // Haptic feedback: kurze Vibration beim Wortbilden (mobile)
+  if(newWords.length>0 && navigator.vibrate) try{ navigator.vibrate(50); }catch(e){}
   if(!newWords.length){activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;return;}
   const max=Math.max(...newWords.map(w=>w.word.length));
   const winners=newWords.filter(w=>w.word.length===max);
@@ -2564,7 +2566,7 @@ function render(){
           else if(board[k].owner===P2) vCount++;
         }
       }
-      if(oCount<=6 || vCount<=6) window.SHOVEAUDIO.activateEndgame();
+      if(oCount<=9 || vCount<=9) window.SHOVEAUDIO.activateEndgame();
     } catch(e){}
   }
 
