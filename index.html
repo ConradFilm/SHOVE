@@ -2308,7 +2308,7 @@ function humanAITurn(){
               pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},600);
               render();
             },_forbiddenB);
-            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=()=>{pendingNextTurn=null;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}};render();}
+            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},600);render();}
             render();
           });
         } else {
@@ -2515,7 +2515,7 @@ function humanAITurn(){
               pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},600);
               render();
             },_forbiddenB);
-            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=()=>{pendingNextTurn=null;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}};render();}
+            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},600);render();}
             render();
           });
         } else {
