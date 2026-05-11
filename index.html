@@ -1983,12 +1983,23 @@ function humanDoPush(push){
       // ist das die wichtigere Info als die Bot-Reaktion auf sein eigenes zerstörtes Wort.
       const _isBalanceIssue = newWords.length > 0 && _playerLoss >= kills && kills > 0;
       
-if(_isBalanceIssue){
-        window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
-      } else if(_destroyed && newWords.length > 0){
-        window.SHOVECHAT.onBoardDelta({destroyedBotWord:true});
+      // Funktion, die den Bot-Kommentar zum Spielerzug auslöst
+      const _firePlayerChat = ()=>{
+        if(_isBalanceIssue){
+          window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
+        } else if(_destroyed && newWords.length > 0){
+          window.SHOVECHAT.onBoardDelta({destroyedBotWord:true});
+        } else {
+          window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
+        }
+      };
+      // Wenn Spieler ein Wort gebildet hat, Kommentar erst NACH der Wort-Animation (siehe weiter unten)
+      // Sonst: Kommentar sofort jetzt
+      if(newWords.length === 0){
+        _firePlayerChat();
       } else {
-        window.SHOVECHAT.onPlayerMove({wordsFormed:newWords.length, killsCount:kills, longestWord:_chatLongestWord, wordPossibleButMissed:false, playerLoss:_playerLoss});
+        // Stash callback for execution after animateWordBirth
+        window._SHOVE_pendingPlayerChat = _firePlayerChat;
       }
       // === FALLE-DETEKTION === Endphase aktiv und Bot könnte im nächsten Zug viele Spieler-Steine eliminieren?
       try {
@@ -2037,6 +2048,11 @@ if(_isBalanceIssue){
         _breathing=false;
         // 4 breaths done — board still highlighted
         const z=document.getElementById("wordZoneMob");if(z)z.innerHTML="";
+        // NACH der Wort-Animation: jetzt Bot-Kommentar zum Spielerzug auslösen
+        if(typeof window._SHOVE_pendingPlayerChat === 'function'){
+          try{ window._SHOVE_pendingPlayerChat(); }catch(e){}
+          window._SHOVE_pendingPlayerChat = null;
+        }
         // Transition to return-ready comment (symmetric to bot flow) — stays stable during stone return
         comment=`<span style="color:#93c5fd">Du gewinnst ${kills} Bstb..</span>`;
         commentCls="human";
@@ -4121,7 +4137,10 @@ if(txt){ showBox(txt); return; }
     if(!STATE.on) return;
     
     // Trigger 8: Bot ist stolz (3+ kills mit eigenem Wort)
-    if(opts.killsCount >= 3 && opts.longestWord){
+    // ABER: nicht beim allerersten Bot-Zug — da hat der Spieler noch nichts gemacht,
+    // Sätze wie "Du machst es spannend, ich bleibe dran" ergeben keinen Sinn.
+    const _bmc = (typeof _botMoveCount !== 'undefined') ? _botMoveCount : 0;
+    if(opts.killsCount >= 3 && opts.longestWord && _bmc >= 2){
       const txt = pick('bot_proud');
       if(txt){ showBox(txt); return; }
     }
