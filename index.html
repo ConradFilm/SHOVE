@@ -1983,6 +1983,10 @@ function humanDoPush(push){
       // ist das die wichtigere Info als die Bot-Reaktion auf sein eigenes zerstörtes Wort.
       const _isBalanceIssue = newWords.length > 0 && _playerLoss >= kills && kills > 0;
       
+      // Beim Spieler-Push: erst alte Sprechblase (z.B. von ZURÜCK) ausblenden,
+      // damit sie nicht das gleich kommende Wort überlagert.
+      if(window.SHOVECHAT && window.SHOVECHAT.hideBox) try{ window.SHOVECHAT.hideBox(); }catch(e){}
+      
       // Funktion, die den Bot-Kommentar zum Spielerzug auslöst
       const _firePlayerChat = ()=>{
         if(_isBalanceIssue){
