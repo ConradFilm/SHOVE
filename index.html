@@ -2144,7 +2144,24 @@ function humanAITurn(){
         if(_w.onmessage)_w.onmessage({data:{best:null}});
       },5000);
       _w.onerror=function(){clearTimeout(_botTimeout);_workerFailed=true;_aiWorker=null;if(_w.onmessage)_w.onmessage({data:{best:null}});};
-      _w.onmessage=function(ev){clearTimeout(_botTimeout);_w.onmessage=null;let best=ev.data&&ev.data.best||null;
+      _w.onmessage=function(ev){clearTimeout(_botTimeout);
+        // === FILMZITAT vor Bot-Ankündigung ===
+        // Prüfe BEVOR die Ankündigungs-Logik startet: würde dieser Zug zum Sieg führen?
+        const _qBest = ev.data && ev.data.best;
+        if(window.SHOVECHAT && window.SHOVECHAT.showFinalQuote && window.SHOVECHAT.isOn && window.SHOVECHAT.isOn() && _qBest && _qBest.push && _qBest.push.result && _qBest.push.result.removed && !_finalQuoteShownThisGame){
+          const _qHCnt=(function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
+          const _qHKill=_qBest.push.result.removed.filter(r=>r.owner===humanPlayer).length;
+          if(_qHCnt - _qHKill < 4){
+            _finalQuoteShownThisGame = true;
+            window.SHOVECHAT.showFinalQuote();
+            // 3s pause, dann handler nochmal aufrufen (jetzt feuert er nicht erneut, weil flag gesetzt)
+            const _savedEv = ev;
+            const _savedHandler = arguments.callee;
+            setTimeout(()=>{ _savedHandler(_savedEv); }, 3000);
+            return;
+          }
+        }
+        _w.onmessage=null;let best=ev.data&&ev.data.best||null;
     if(!best){
       // Fallback: synchronous with max level 2 (no 3-ply minimax — avoids main thread freeze)
       const _savedKl=kiLevel;if(kiLevel>2)kiLevel=2;
@@ -2226,19 +2243,7 @@ function humanAITurn(){
     const doBotPush=()=>{
       pendingNextTurn=null;
       
-      // === FILMZITAT vor finalem Bot-Sieg-Zug ===
-      // Pro Spielrunde nur EIN Zitat — _finalQuoteShownThisGame wird in startGame zurückgesetzt
-      if(window.SHOVECHAT && window.SHOVECHAT.showFinalQuote && window.SHOVECHAT.isOn && window.SHOVECHAT.isOn() && best.push.result && best.push.result.removed && !_finalQuoteShownThisGame){
-        const _hCnt=(function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
-        const _hKill=best.push.result.removed.filter(r=>r.owner===humanPlayer).length;
-        if(_hCnt - _hKill < 4){
-          _finalQuoteShownThisGame = true;
-          window.SHOVECHAT.showFinalQuote();
-          setTimeout(()=>{ doBotPush(); }, 3000);
-          return;
-        }
-      }
-      
+
       kiWordHL={};// keep word-box visible through push + stone return
       moveNum++;_botMoveCount++;
       const bw2=findAllWords(board);prevBoard=JSON.parse(JSON.stringify(board));
@@ -2371,6 +2376,19 @@ function humanAITurn(){
     }else{
       setTimeout(()=>{const best=kiPickBestMove(board,aiPlayer);
     if(!best){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
+    
+    // === FILMZITAT vor Bot-Ankündigung (Fallback-Pfad) ===
+    if(window.SHOVECHAT && window.SHOVECHAT.showFinalQuote && window.SHOVECHAT.isOn && window.SHOVECHAT.isOn() && best.push && best.push.result && best.push.result.removed && !_finalQuoteShownThisGame){
+      const _qHCnt=(function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
+      const _qHKill=best.push.result.removed.filter(r=>r.owner===humanPlayer).length;
+      if(_qHCnt - _qHKill < 4){
+        _finalQuoteShownThisGame = true;
+        window.SHOVECHAT.showFinalQuote();
+        // 3s warten, dann Fallback komplett neu auslösen (Best wird neu berechnet — selbe Logik)
+        setTimeout(()=>{ humanAITurn(); }, 3000);
+        return;
+      }
+    }
     // Preview word — guard against null best
     if(!best||!best.push){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
     const ch=board[K(best.jumped?best.jump.fromX:best.push.x,best.jumped?best.jump.fromY:best.push.y)]?.ch||"?";
@@ -2433,19 +2451,7 @@ function humanAITurn(){
     const doBotPush=()=>{
       pendingNextTurn=null;
       
-      // === FILMZITAT vor finalem Bot-Sieg-Zug ===
-      // Pro Spielrunde nur EIN Zitat — _finalQuoteShownThisGame wird in startGame zurückgesetzt
-      if(window.SHOVECHAT && window.SHOVECHAT.showFinalQuote && window.SHOVECHAT.isOn && window.SHOVECHAT.isOn() && best.push.result && best.push.result.removed && !_finalQuoteShownThisGame){
-        const _hCnt=(function(){let c=0;for(const k in board){if(board[k]&&board[k].owner===humanPlayer)c++;}return c;})();
-        const _hKill=best.push.result.removed.filter(r=>r.owner===humanPlayer).length;
-        if(_hCnt - _hKill < 4){
-          _finalQuoteShownThisGame = true;
-          window.SHOVECHAT.showFinalQuote();
-          setTimeout(()=>{ doBotPush(); }, 3000);
-          return;
-        }
-      }
-      
+
       kiWordHL={};// keep word-box visible through push + stone return
       moveNum++;_botMoveCount++;
       const bw2=findAllWords(board);prevBoard=JSON.parse(JSON.stringify(board));
