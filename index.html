@@ -278,6 +278,9 @@ function kiScore(myCount,oppCount,eliminated,stonesBack,longestWord,oppAfter,isJ
     if(myCount<=6)sc+=stonesBack*(kiLevel===3?35:20);
     if(longestWord>=4)sc+=wrdW4;// flat bonus: word exists
   }
+  // Heavy penalty for "word formed but no opponent kill" — mathematically a loss-only move
+  // (own stone sacrificed, no reward since reward = opponent kills). Applies to all levels.
+  if(longestWord>=4 && eliminated===0) sc -= 200;
   // Nice: occasional random move to feel human
   const noise=kiLevel===1?Math.random()*18-6 : kiLevel===2?Math.random()*4 : Math.random()*0.5;
   sc+=noise;
@@ -1348,8 +1351,6 @@ function getWordCellKeys(){
 function applyWordHL(newWords){
   wordHLMap={};
   if(newWords.length>0 && window.SHOVEAUDIO) window.SHOVEAUDIO.playWord();
-  // Haptic feedback: kurze Vibration beim Wortbilden (mobile)
-  if(newWords.length>0 && navigator.vibrate) try{ navigator.vibrate(50); }catch(e){}
   if(!newWords.length){activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;return;}
   const max=Math.max(...newWords.map(w=>w.word.length));
   const winners=newWords.filter(w=>w.word.length===max);
@@ -1398,6 +1399,9 @@ function kiScore(myCount,oppCount,eliminated,stonesBack,longestWord,oppAfter,isJ
     if(myCount<=6)sc+=stonesBack*(kiLevel===3?35:20);
     if(longestWord>=4)sc+=wrdW4;// flat bonus: word exists
   }
+  // Heavy penalty for "word formed but no opponent kill" — mathematically a loss-only move
+  // (own stone sacrificed, no reward since reward = opponent kills). Applies to all levels.
+  if(longestWord>=4 && eliminated===0) sc -= 200;
   // Nice: occasional random move to feel human
   const noise=kiLevel===1?Math.random()*18-6 : kiLevel===2?Math.random()*4 : Math.random()*0.5;
   sc+=noise;
@@ -1748,14 +1752,8 @@ function checkGameEnd(){
     :`<b style="color:#ef4444">Bot gewinnt.</b> Du hast noch ${lCount} Buchstabe${lCount!==1?"n":""} übrig.`;
   commentCls="gold";wordHLMap={};activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();render();
   setTimeout(()=>{simPhase="gameover";
-    // SHOVECHAT: announce game end — use the already-computed _gameWinner
-    // (correctly handles "both at 3" tie: the mover wins)
-    if(window.SHOVECHAT){
-      try{
-        const playerWon = _gameWinner === humanPlayer;
-        window.SHOVECHAT.onGameEnd(playerWon);
-      }catch(e){}
-    }
+    // Beim Spielende keine Sprechblase mehr — Analyse-Screen ist eigenständig
+    if(window.SHOVECHAT) try{ window.SHOVECHAT.hideBox(); }catch(e){}
     render();},2000);
   return true;
 }
