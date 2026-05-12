@@ -1876,13 +1876,22 @@ function humanDoPush(push){
         _missedW.terminate();
         const ko=ev.data.best;
         try{
+          // Compute player's actual move data (always available)
+          const _humanKills=_pushSnap.result.removed.filter(x=>x.owner!==humanPlayer).length;
+          const _humanAfterW=getNewWords(_beforeWordsSnap,findAllWords(applyPush(_prevBoardSnap,_pushSnap)));
+          if(_humanAfterW.length===0 && (!ko || !ko.push)){
+            // Kein Hidden Word gefunden — trotzdem Eintrag, damit Zug in der Analyse erscheint
+            gameStats.missedMoves.push({moveNum,kiWords:[],kiLongest:0,kiKills:0,
+              humanWords:[],humanKills:_humanKills,hiddenWord:null,hiddenBoard:null,
+              kiMove:null,jumped:false,jumpFrom:null,jumpTo:null});
+          }
           if(ko&&ko.push){
             const kbj=ko.jumped?applyJump(_prevBoardSnap,ko.jump.fromX,ko.jump.fromY,ko.jump.toX,ko.jump.toY):_prevBoardSnap;
             const knb=applyPush(kbj,ko.push);
             const kw=getNewWords(_beforeWordsSnap,findAllWords(knb));
             const kk=ko.push.result.removed.filter(x=>x.owner!==humanPlayer).length;
-            const kills=_pushSnap.result.removed.filter(x=>x.owner!==humanPlayer).length;
-            const afterW=getNewWords(_beforeWordsSnap,findAllWords(applyPush(_prevBoardSnap,_pushSnap)));
+            const kills=_humanKills;
+            const afterW=_humanAfterW;
             const kl=kw.length>0?Math.max(...kw.map(w=>w.word.length)):0;
             const hl=afterW.length>0?Math.max(...afterW.map(w=>w.word.length)):0;
             if(afterW.length===0){
@@ -1924,13 +1933,22 @@ function humanDoPush(push){
           const _savedLevel=kiLevel;kiLevel=3;// Sharp for analysis
           const ko=kiPickBestMove(_prevBoardSnap,humanPlayer);
           kiLevel=_savedLevel;
+          // Compute player's actual move data (always available)
+          const _humanKills=_pushSnap.result.removed.filter(x=>x.owner!==humanPlayer).length;
+          const _humanAfterW=getNewWords(_beforeWordsSnap,findAllWords(applyPush(_prevBoardSnap,_pushSnap)));
+          if(_humanAfterW.length===0 && (!ko || !ko.push)){
+            // Kein Hidden Word gefunden — trotzdem Eintrag, damit Zug in der Analyse erscheint
+            gameStats.missedMoves.push({moveNum,kiWords:[],kiLongest:0,kiKills:0,
+              humanWords:[],humanKills:_humanKills,hiddenWord:null,hiddenBoard:null,
+              kiMove:null,jumped:false,jumpFrom:null,jumpTo:null});
+          }
           if(ko&&ko.push){
             const kbj=ko.jumped?applyJump(_prevBoardSnap,ko.jump.fromX,ko.jump.fromY,ko.jump.toX,ko.jump.toY):_prevBoardSnap;
             const knb=applyPush(kbj,ko.push);
             const kw=getNewWords(_beforeWordsSnap,findAllWords(knb));
             const kk=ko.push.result.removed.filter(x=>x.owner!==humanPlayer).length;
-            const kills=_pushSnap.result.removed.filter(x=>x.owner!==humanPlayer).length;
-            const afterW=getNewWords(_beforeWordsSnap,findAllWords(applyPush(_prevBoardSnap,_pushSnap)));
+            const kills=_humanKills;
+            const afterW=_humanAfterW;
             const kl=kw.length>0?Math.max(...kw.map(w=>w.word.length)):0;
             const hl=afterW.length>0?Math.max(...afterW.map(w=>w.word.length)):0;
             if(afterW.length===0){
@@ -2058,7 +2076,13 @@ function humanDoPush(push){
           window._SHOVE_pendingPlayerChat = null;
         }
         // Transition to return-ready comment (symmetric to bot flow) — stays stable during stone return
-        comment=`<span style="color:#93c5fd">Du gewinnst ${kills} Bstb..</span>`;
+        // Bilanz-Anzeige: bei Selbstopfer auch "verlierst X" zeigen
+        const _humanSelfLoss = push.result.removed.filter(x => x.owner === humanPlayer).length;
+        if(_humanSelfLoss > 0){
+          comment=`<span style="color:#93c5fd">Du gewinnst ${kills}, verlierst ${_humanSelfLoss} Bstb..</span>`;
+        } else {
+          comment=`<span style="color:#93c5fd">Du gewinnst ${kills} Bstb..</span>`;
+        }
         commentCls="human";
         // wordHLMap stays — board letters still highlighted!
         // Stone return — same as flow
@@ -2080,9 +2104,15 @@ function humanDoPush(push){
             }
           }
         }
+        const _humanSelfLoss2 = push.result.removed.filter(x => x.owner === humanPlayer).length;
         const ret=returnStonesAnimated(humanPlayer,kills,(n)=>{
           gameStats[humanPlayer===P1?'p1ret':'p2ret']+=n||ret;
-          comment=`<span style="color:#93c5fd">Du gewinnst ${n||ret} Bstb. — drücke WEITER</span>`;
+          // Bilanz bei Selbstopfer
+          if(_humanSelfLoss2 > 0){
+            comment=`<span style="color:#93c5fd">Du gewinnst ${n||ret}, verlierst ${_humanSelfLoss2} Bstb. — drücke WEITER</span>`;
+          } else {
+            comment=`<span style="color:#93c5fd">Du gewinnst ${n||ret} Bstb. — drücke WEITER</span>`;
+          }
           commentCls="human";
           activeWordBoxes=[];
           backAvailable=true;lastCompleted="human";
@@ -2285,7 +2315,13 @@ function humanAITurn(){
               kills:kills,aiPlayer:aiPlayer,push:best.push
             };
             botTurnPhase=4;
-            comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
+            // Bilanz: Bot-Selbstopfer
+            const _botSelfLoss = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
+            if(_botSelfLoss > 0){
+              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills}, verliert ${_botSelfLoss} Bstb..</span>`;
+            } else {
+              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
+            }
             commentCls="human";
             wordHLMap={};// keep word-box during stone return
             render();
@@ -2306,7 +2342,13 @@ function humanAITurn(){
             const ret=returnStonesAnimated(aiPlayer,kills,(n)=>{
               botTurnPhase=0;botReturnSnap=null;
               gameStats[aiPlayer===P1?'p1ret':'p2ret']+=n||ret;
-              comment=`<span style="color:#93c5fd">Bot gewinnt ${n||ret} Bstb..</span>`;
+              // Bilanz: Bot-Selbstopfer
+              const _botSelfLoss2 = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
+              if(_botSelfLoss2 > 0){
+                comment=`<span style="color:#93c5fd">Bot gewinnt ${n||ret}, verliert ${_botSelfLoss2} Bstb..</span>`;
+              } else {
+                comment=`<span style="color:#93c5fd">Bot gewinnt ${n||ret} Bstb..</span>`;
+              }
               commentCls="human";
               activeWordBoxes=[];
               backAvailable=true;lastCompleted="bot";
@@ -2493,7 +2535,13 @@ function humanAITurn(){
               kills:kills,aiPlayer:aiPlayer,push:best.push
             };
             botTurnPhase=4;
-            comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
+            // Bilanz: Bot-Selbstopfer
+            const _botSelfLoss = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
+            if(_botSelfLoss > 0){
+              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills}, verliert ${_botSelfLoss} Bstb..</span>`;
+            } else {
+              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
+            }
             commentCls="human";
             wordHLMap={};// keep word-box during stone return
             render();
@@ -2514,7 +2562,13 @@ function humanAITurn(){
             const ret=returnStonesAnimated(aiPlayer,kills,(n)=>{
               botTurnPhase=0;botReturnSnap=null;
               gameStats[aiPlayer===P1?'p1ret':'p2ret']+=n||ret;
-              comment=`<span style="color:#93c5fd">Bot gewinnt ${n||ret} Bstb..</span>`;
+              // Bilanz: Bot-Selbstopfer
+              const _botSelfLoss2 = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
+              if(_botSelfLoss2 > 0){
+                comment=`<span style="color:#93c5fd">Bot gewinnt ${n||ret}, verliert ${_botSelfLoss2} Bstb..</span>`;
+              } else {
+                comment=`<span style="color:#93c5fd">Bot gewinnt ${n||ret} Bstb..</span>`;
+              }
               commentCls="human";
               activeWordBoxes=[];
               backAvailable=true;lastCompleted="bot";
