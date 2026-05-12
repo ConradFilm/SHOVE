@@ -2089,8 +2089,8 @@ function humanDoPush(push){
       const wn=newWords.map(w=>`<span style="color:${w.dir==="row"?"#4caf50":"#42a5f5"};font-weight:900">${w.word}</span>`).join(' · ');
       const _humanLossP4 = push.result.removed.filter(x => x.owner === humanPlayer).length;
       const _elimStr = _humanLossP4 > 0
-        ? `${kills} Bot-Buchst. eliminiert, ${_humanLossP4} eigener verloren`
-        : `${kills} Bot-Buchst. eliminiert`;
+        ? `${kills} Bot-Bst. eliminiert, ${_humanLossP4} ${_humanLossP4===1?'eigener':'eigene'} verloren`
+        : `${kills} Bot-Bst. eliminiert`;
       comment=`Zug ${moveNum} — <b>${pieceCh}</b> ${fc}${fr}→${tc}${tr} · ${wn} · ${_elimStr}`;
       commentCls="hl";render();
       _breathing=true;
@@ -2103,8 +2103,8 @@ function humanDoPush(push){
           try{ window._SHOVE_pendingPlayerChat(); }catch(e){}
           window._SHOVE_pendingPlayerChat = null;
         }
-        // Phase 5: nur "Du gewinnst X Bstb." — Verlust steht bereits in Phase 4
-        comment=`<span style="color:#93c5fd">Du gewinnst ${kills} Bstb..</span>`;
+        // Phase 5: nur "Du gewinnst X Bst." — Verlust steht bereits in Phase 4
+        comment=`<span style="color:#93c5fd">Du gewinnst ${kills} Bst.</span>`;
         commentCls="human";
         wordHLMap={};// keep word box during return
         render();
@@ -2140,8 +2140,8 @@ function humanDoPush(push){
       wordBoxKills=0;wordBoxBadgeShown=false;
       const _humanLossP4nw = push.result.removed.filter(x => x.owner === humanPlayer).length;
       const _elimStrNw = _humanLossP4nw > 0
-        ? `${kills} Bot-Buchst. eliminiert, ${_humanLossP4nw} eigener verloren`
-        : `${kills} Bot-Buchst. eliminiert`;
+        ? `${kills} Bot-Bst. eliminiert, ${_humanLossP4nw} ${_humanLossP4nw===1?'eigener':'eigene'} verloren`
+        : `${kills} Bot-Bst. eliminiert`;
       comment=`Zug ${moveNum} — <b>${pieceCh}</b> ${fc}${fr}→${tc}${tr} · ${_elimStrNw}`;
       commentCls="";wordHLMap={};
       // Track missed word opportunity
@@ -2318,8 +2318,8 @@ function humanAITurn(){
           const wn=nw2.map(w=>`<span style="color:${w.dir==="row"?"#4caf50":"#42a5f5"};font-weight:900">${w.word}</span>`).join(' · ');
           const _botLossP4 = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
           const _botElimStr = _botLossP4 > 0
-            ? `${kills} deiner Buchst. eliminiert, ${_botLossP4} eigener verloren`
-            : `${kills} deiner Buchst. eliminiert`;
+            ? `${kills} deiner Bst. eliminiert, ${_botLossP4} ${_botLossP4===1?'eigener':'eigene'} verloren`
+            : `${kills} deiner Bst. eliminiert`;
           comment=`Bot · ${wn} · ${_botElimStr}`;
           commentCls="hl";botTurnPhase=2;render();
           // Phase 2: breathing (4x). NEXT greyed. After breath → phase 3.
@@ -2338,8 +2338,8 @@ function humanAITurn(){
               kills:kills,aiPlayer:aiPlayer,push:best.push
             };
             botTurnPhase=4;
-            // Phase 5: nur "Bot gewinnt X Bstb." — Verlust steht bereits in Phase 4
-            comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
+            // Phase 5: nur "Bot gewinnt X Bst." — Verlust steht bereits in Phase 4
+            comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bst.</span>`;
             commentCls="human";
             wordHLMap={};// keep word-box during stone return
             render();
@@ -2374,8 +2374,8 @@ function humanAITurn(){
         } else {
           const _botLossP4nw = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
           const _botElimStrNw = _botLossP4nw > 0
-            ? `${kills} deiner Buchst. eliminiert, ${_botLossP4nw} eigener verloren`
-            : `${kills} deiner Buchst. eliminiert`;
+            ? `${kills} deiner Bst. eliminiert, ${_botLossP4nw} ${_botLossP4nw===1?'eigener':'eigene'} verloren`
+            : `${kills} deiner Bst. eliminiert`;
           comment=`Bot · ${_botElimStrNw}`;commentCls="ai";wordHLMap={};
           botTurnPhase=0;turn=humanPlayer;backAvailable=true;lastCompleted="bot";
           pendingNextTurn=()=>{pendingNextTurn=null;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}};
@@ -2536,8 +2536,8 @@ function humanAITurn(){
           const wn=nw2.map(w=>`<span style="color:${w.dir==="row"?"#4caf50":"#42a5f5"};font-weight:900">${w.word}</span>`).join(' · ');
           const _botLossP4 = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
           const _botElimStr = _botLossP4 > 0
-            ? `${kills} deiner Buchst. eliminiert, ${_botLossP4} eigener verloren`
-            : `${kills} deiner Buchst. eliminiert`;
+            ? `${kills} deiner Bst. eliminiert, ${_botLossP4} ${_botLossP4===1?'eigener':'eigene'} verloren`
+            : `${kills} deiner Bst. eliminiert`;
           comment=`Bot · ${wn} · ${_botElimStr}`;
           commentCls="hl";botTurnPhase=2;render();
           // Phase 2: breathing (4x). NEXT greyed. After breath → phase 3.
@@ -2556,8 +2556,8 @@ function humanAITurn(){
               kills:kills,aiPlayer:aiPlayer,push:best.push
             };
             botTurnPhase=4;
-            // Phase 5: nur "Bot gewinnt X Bstb." — Verlust steht bereits in Phase 4
-            comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
+            // Phase 5: nur "Bot gewinnt X Bst." — Verlust steht bereits in Phase 4
+            comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bst.</span>`;
             commentCls="human";
             wordHLMap={};// keep word-box during stone return
             render();
@@ -2592,8 +2592,8 @@ function humanAITurn(){
         } else {
           const _botLossP4nw = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
           const _botElimStrNw = _botLossP4nw > 0
-            ? `${kills} deiner Buchst. eliminiert, ${_botLossP4nw} eigener verloren`
-            : `${kills} deiner Buchst. eliminiert`;
+            ? `${kills} deiner Bst. eliminiert, ${_botLossP4nw} ${_botLossP4nw===1?'eigener':'eigene'} verloren`
+            : `${kills} deiner Bst. eliminiert`;
           comment=`Bot · ${_botElimStrNw}`;commentCls="ai";wordHLMap={};
           botTurnPhase=0;turn=humanPlayer;backAvailable=true;lastCompleted="bot";
           pendingNextTurn=()=>{pendingNextTurn=null;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}};
