@@ -2107,12 +2107,7 @@ function humanDoPush(push){
         const _humanSelfLoss2 = push.result.removed.filter(x => x.owner === humanPlayer).length;
         const ret=returnStonesAnimated(humanPlayer,kills,(n)=>{
           gameStats[humanPlayer===P1?'p1ret':'p2ret']+=n||ret;
-          // Bilanz bei Selbstopfer
-          if(_humanSelfLoss2 > 0){
-            comment=`<span style="color:#93c5fd">Du gewinnst ${n||ret}, verlierst ${_humanSelfLoss2} Bstb. — drücke WEITER</span>`;
-          } else {
-            comment=`<span style="color:#93c5fd">Du gewinnst ${n||ret} Bstb. — drücke WEITER</span>`;
-          }
+          // Kommentar bleibt stehen (Phase 4); WEITER wird aktiv durch pendingNextTurn
           commentCls="human";
           activeWordBoxes=[];
           backAvailable=true;lastCompleted="human";
@@ -2342,20 +2337,15 @@ function humanAITurn(){
             const ret=returnStonesAnimated(aiPlayer,kills,(n)=>{
               botTurnPhase=0;botReturnSnap=null;
               gameStats[aiPlayer===P1?'p1ret':'p2ret']+=n||ret;
-              // Bilanz: Bot-Selbstopfer
-              const _botSelfLoss2 = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
-              if(_botSelfLoss2 > 0){
-                comment=`<span style="color:#93c5fd">Bot gewinnt ${n||ret}, verliert ${_botSelfLoss2} Bstb..</span>`;
-              } else {
-                comment=`<span style="color:#93c5fd">Bot gewinnt ${n||ret} Bstb..</span>`;
-              }
+              // Kommentar (Bilanz) bleibt stehen (Phase 4)
               commentCls="human";
               activeWordBoxes=[];
               backAvailable=true;lastCompleted="bot";
-              pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},600);
+              // Längere Pause (2.5s) damit Bilanz lesbar bleibt vor dem nächsten Zug
+              pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);
               render();
             },_forbiddenB);
-            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},600);render();}
+            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);render();}
             render();
           });
         } else {
@@ -2562,20 +2552,15 @@ function humanAITurn(){
             const ret=returnStonesAnimated(aiPlayer,kills,(n)=>{
               botTurnPhase=0;botReturnSnap=null;
               gameStats[aiPlayer===P1?'p1ret':'p2ret']+=n||ret;
-              // Bilanz: Bot-Selbstopfer
-              const _botSelfLoss2 = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
-              if(_botSelfLoss2 > 0){
-                comment=`<span style="color:#93c5fd">Bot gewinnt ${n||ret}, verliert ${_botSelfLoss2} Bstb..</span>`;
-              } else {
-                comment=`<span style="color:#93c5fd">Bot gewinnt ${n||ret} Bstb..</span>`;
-              }
+              // Kommentar (Bilanz) bleibt stehen (Phase 4)
               commentCls="human";
               activeWordBoxes=[];
               backAvailable=true;lastCompleted="bot";
-              pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},600);
+              // Längere Pause (2.5s) damit Bilanz lesbar bleibt vor dem nächsten Zug
+              pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);
               render();
             },_forbiddenB);
-            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},600);render();}
+            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);render();}
             render();
           });
         } else {
