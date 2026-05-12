@@ -2087,7 +2087,11 @@ function humanDoPush(push){
       applyWordHL(newWords);
       gameStats[humanPlayer===P1?'p1words':'p2words']++;
       const wn=newWords.map(w=>`<span style="color:${w.dir==="row"?"#4caf50":"#42a5f5"};font-weight:900">${w.word}</span>`).join(' · ');
-      comment=`Zug ${moveNum} — <b>${pieceCh}</b> ${fc}${fr}→${tc}${tr} · ${kills} Bot-Buchst. eliminiert · ${wn}`;
+      const _humanLossP4 = push.result.removed.filter(x => x.owner === humanPlayer).length;
+      const _elimStr = _humanLossP4 > 0
+        ? `${kills} Bot-Buchst. eliminiert, ${_humanLossP4} eigener verloren`
+        : `${kills} Bot-Buchst. eliminiert`;
+      comment=`Zug ${moveNum} — <b>${pieceCh}</b> ${fc}${fr}→${tc}${tr} · ${wn} · ${_elimStr}`;
       commentCls="hl";render();
       _breathing=true;
       animateWordBirth(newWords,()=>{
@@ -2099,13 +2103,8 @@ function humanDoPush(push){
           try{ window._SHOVE_pendingPlayerChat(); }catch(e){}
           window._SHOVE_pendingPlayerChat = null;
         }
-        // Phase 5: Bilanz nach Wort-Animation (bleibt sichtbar während Stein-Rückkehr)
-        const _humanSelfLoss = push.result.removed.filter(x => x.owner === humanPlayer).length;
-        if(_humanSelfLoss > 0){
-          comment=`<span style="color:#93c5fd">Du gewinnst ${kills}, verlierst ${_humanSelfLoss} Bstb..</span>`;
-        } else {
-          comment=`<span style="color:#93c5fd">Du gewinnst ${kills} Bstb..</span>`;
-        }
+        // Phase 5: nur "Du gewinnst X Bstb." — Verlust steht bereits in Phase 4
+        comment=`<span style="color:#93c5fd">Du gewinnst ${kills} Bstb..</span>`;
         commentCls="human";
         wordHLMap={};// keep word box during return
         render();
@@ -2139,7 +2138,11 @@ function humanDoPush(push){
       });
     } else {
       wordBoxKills=0;wordBoxBadgeShown=false;
-      comment=`Zug ${moveNum} — <b>${pieceCh}</b> ${fc}${fr}→${tc}${tr} · ${kills} Bot-Buchst. eliminiert`;
+      const _humanLossP4nw = push.result.removed.filter(x => x.owner === humanPlayer).length;
+      const _elimStrNw = _humanLossP4nw > 0
+        ? `${kills} Bot-Buchst. eliminiert, ${_humanLossP4nw} eigener verloren`
+        : `${kills} Bot-Buchst. eliminiert`;
+      comment=`Zug ${moveNum} — <b>${pieceCh}</b> ${fc}${fr}→${tc}${tr} · ${_elimStrNw}`;
       commentCls="";wordHLMap={};
       // Track missed word opportunity
       const _showWord=_snapHiddenWord||(_humanPushWords?_humanPushWords.word:null);
@@ -2313,7 +2316,11 @@ function humanAITurn(){
           applyWordHL(nw2);
           gameStats[aiPlayer===P1?'p1words':'p2words']++;
           const wn=nw2.map(w=>`<span style="color:${w.dir==="row"?"#4caf50":"#42a5f5"};font-weight:900">${w.word}</span>`).join(' · ');
-          comment=`Bot · ${wn} · ${kills} deiner Buchst. eliminiert`;
+          const _botLossP4 = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
+          const _botElimStr = _botLossP4 > 0
+            ? `${kills} deiner Buchst. eliminiert, ${_botLossP4} eigener verloren`
+            : `${kills} deiner Buchst. eliminiert`;
+          comment=`Bot · ${wn} · ${_botElimStr}`;
           commentCls="hl";botTurnPhase=2;render();
           // Phase 2: breathing (4x). NEXT greyed. After breath → phase 3.
           _breathing=true;
@@ -2331,13 +2338,8 @@ function humanAITurn(){
               kills:kills,aiPlayer:aiPlayer,push:best.push
             };
             botTurnPhase=4;
-            // Bilanz: Bot-Selbstopfer
-            const _botSelfLoss = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
-            if(_botSelfLoss > 0){
-              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills}, verliert ${_botSelfLoss} Bstb..</span>`;
-            } else {
-              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
-            }
+            // Phase 5: nur "Bot gewinnt X Bstb." — Verlust steht bereits in Phase 4
+            comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
             commentCls="human";
             wordHLMap={};// keep word-box during stone return
             render();
@@ -2370,7 +2372,11 @@ function humanAITurn(){
             render();
           });
         } else {
-          comment=`Bot · ${kills} deiner Buchst. eliminiert`;commentCls="ai";wordHLMap={};
+          const _botLossP4nw = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
+          const _botElimStrNw = _botLossP4nw > 0
+            ? `${kills} deiner Buchst. eliminiert, ${_botLossP4nw} eigener verloren`
+            : `${kills} deiner Buchst. eliminiert`;
+          comment=`Bot · ${_botElimStrNw}`;commentCls="ai";wordHLMap={};
           botTurnPhase=0;turn=humanPlayer;backAvailable=true;lastCompleted="bot";
           pendingNextTurn=()=>{pendingNextTurn=null;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}};
           render();
@@ -2528,7 +2534,11 @@ function humanAITurn(){
           applyWordHL(nw2);
           gameStats[aiPlayer===P1?'p1words':'p2words']++;
           const wn=nw2.map(w=>`<span style="color:${w.dir==="row"?"#4caf50":"#42a5f5"};font-weight:900">${w.word}</span>`).join(' · ');
-          comment=`Bot · ${wn} · ${kills} deiner Buchst. eliminiert`;
+          const _botLossP4 = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
+          const _botElimStr = _botLossP4 > 0
+            ? `${kills} deiner Buchst. eliminiert, ${_botLossP4} eigener verloren`
+            : `${kills} deiner Buchst. eliminiert`;
+          comment=`Bot · ${wn} · ${_botElimStr}`;
           commentCls="hl";botTurnPhase=2;render();
           // Phase 2: breathing (4x). NEXT greyed. After breath → phase 3.
           _breathing=true;
@@ -2546,13 +2556,8 @@ function humanAITurn(){
               kills:kills,aiPlayer:aiPlayer,push:best.push
             };
             botTurnPhase=4;
-            // Bilanz: Bot-Selbstopfer
-            const _botSelfLoss = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
-            if(_botSelfLoss > 0){
-              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills}, verliert ${_botSelfLoss} Bstb..</span>`;
-            } else {
-              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
-            }
+            // Phase 5: nur "Bot gewinnt X Bstb." — Verlust steht bereits in Phase 4
+            comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
             commentCls="human";
             wordHLMap={};// keep word-box during stone return
             render();
@@ -2585,7 +2590,11 @@ function humanAITurn(){
             render();
           });
         } else {
-          comment=`Bot · ${kills} deiner Buchst. eliminiert`;commentCls="ai";wordHLMap={};
+          const _botLossP4nw = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
+          const _botElimStrNw = _botLossP4nw > 0
+            ? `${kills} deiner Buchst. eliminiert, ${_botLossP4nw} eigener verloren`
+            : `${kills} deiner Buchst. eliminiert`;
+          comment=`Bot · ${_botElimStrNw}`;commentCls="ai";wordHLMap={};
           botTurnPhase=0;turn=humanPlayer;backAvailable=true;lastCompleted="bot";
           pendingNextTurn=()=>{pendingNextTurn=null;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}};
           render();
