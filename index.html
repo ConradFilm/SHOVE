@@ -377,7 +377,9 @@ function kiSelfDefense(b,player,opp,bSet,humanKills){
     const exposure=oppMaxKills(m.board,opp);
     const netKills=kills-ownLost;
     const kadenz=hk>=2?(kills>=hk?30:-25):0;
-    const sdScore=returns*retW+hasWord*wordW+netKills*killW-exposure*expW+kadenz;
+    // Malus für Wort ohne Kill: mathematisch ein Selbstopfer ohne Gegenwert
+    const wordButNoKill = hasWord && kills === 0;
+    const sdScore=returns*retW+hasWord*wordW+netKills*killW-exposure*expW+kadenz - (wordButNoKill ? 500 : 0);
     return {m,sdScore};
   });
   scored.sort((a,b)=>b.sdScore-a.sdScore);
@@ -471,8 +473,13 @@ function kiPickBestMove(b,player,sac,humanKills){
       },null);
       if(maxKill&&maxKill.move.result.removed.filter(x=>x.owner!==player).length>=1)return maxKill.move;
     }
-    // Always prefer word moves when available — pick randomly among them
-    const wordMoves=moves.filter(m=>m.move.word);
+    // Always prefer word moves WITH KILL — pick randomly among them
+    // Wort ohne Kill ist mathematisch ein Verlust-Zug, daher filtern wir solche raus
+    const wordMoves=moves.filter(m=>{
+      if(!m.move.word) return false;
+      const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
+      return kills >= 1;
+    });
     if(wordMoves.length>0){
       return wordMoves[Math.floor(Math.random()*wordMoves.length)].move;
     }
@@ -488,7 +495,12 @@ function kiPickBestMove(b,player,sac,humanKills){
     if(cnt(b,player)<=14){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const moves=evalMoves(b,player,bSet,20);
     if(!moves.length)return null;
-    const wordMoves=moves.filter(m=>m.move.word);
+    // Wort-Züge nur wenn sie auch mindestens 1 Kill bringen — sonst ist es ein Selbstopfer ohne Gegenwert
+    const wordMoves=moves.filter(m=>{
+      if(!m.move.word) return false;
+      const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
+      return kills >= 1;
+    });
     const pool=wordMoves.length>0?wordMoves:moves;
     return pool.reduce((a,c)=>c.score>a.score?c:a,pool[0]).move;
   }
@@ -1498,7 +1510,9 @@ function kiSelfDefense(b,player,opp,bSet,humanKills){
     const exposure=oppMaxKills(m.board,opp);
     const netKills=kills-ownLost;
     const kadenz=hk>=2?(kills>=hk?30:-25):0;
-    const sdScore=returns*retW+hasWord*wordW+netKills*killW-exposure*expW+kadenz;
+    // Malus für Wort ohne Kill: mathematisch ein Selbstopfer ohne Gegenwert
+    const wordButNoKill = hasWord && kills === 0;
+    const sdScore=returns*retW+hasWord*wordW+netKills*killW-exposure*expW+kadenz - (wordButNoKill ? 500 : 0);
     return {m,sdScore};
   });
   scored.sort((a,b)=>b.sdScore-a.sdScore);
@@ -1592,8 +1606,13 @@ function kiPickBestMove(b,player,sac,humanKills){
       },null);
       if(maxKill&&maxKill.move.result.removed.filter(x=>x.owner!==player).length>=1)return maxKill.move;
     }
-    // Always prefer word moves when available — pick randomly among them
-    const wordMoves=moves.filter(m=>m.move.word);
+    // Always prefer word moves WITH KILL — pick randomly among them
+    // Wort ohne Kill ist mathematisch ein Verlust-Zug, daher filtern wir solche raus
+    const wordMoves=moves.filter(m=>{
+      if(!m.move.word) return false;
+      const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
+      return kills >= 1;
+    });
     if(wordMoves.length>0){
       return wordMoves[Math.floor(Math.random()*wordMoves.length)].move;
     }
@@ -1609,7 +1628,12 @@ function kiPickBestMove(b,player,sac,humanKills){
     if(cnt(b,player)<=14){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const moves=evalMoves(b,player,bSet,20);
     if(!moves.length)return null;
-    const wordMoves=moves.filter(m=>m.move.word);
+    // Wort-Züge nur wenn sie auch mindestens 1 Kill bringen — sonst ist es ein Selbstopfer ohne Gegenwert
+    const wordMoves=moves.filter(m=>{
+      if(!m.move.word) return false;
+      const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
+      return kills >= 1;
+    });
     const pool=wordMoves.length>0?wordMoves:moves;
     return pool.reduce((a,c)=>c.score>a.score?c:a,pool[0]).move;
   }
