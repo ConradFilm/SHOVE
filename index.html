@@ -2099,10 +2099,14 @@ function humanDoPush(push){
           try{ window._SHOVE_pendingPlayerChat(); }catch(e){}
           window._SHOVE_pendingPlayerChat = null;
         }
-        // Phase-4-Kommentar (Wort + Bilanz) bleibt sichtbar — keine zweite Anzeige nötig
+        // Phase 5: Bilanz nach Wort-Animation (bleibt sichtbar während Stein-Rückkehr)
+        const _humanSelfLoss = push.result.removed.filter(x => x.owner === humanPlayer).length;
+        if(_humanSelfLoss > 0){
+          comment=`<span style="color:#93c5fd">Du gewinnst ${kills}, verlierst ${_humanSelfLoss} Bstb..</span>`;
+        } else {
+          comment=`<span style="color:#93c5fd">Du gewinnst ${kills} Bstb..</span>`;
+        }
         commentCls="human";
-        // wordHLMap stays — board letters still highlighted!
-        // Stone return — same as flow
         wordHLMap={};// keep word box during return
         render();
         // Forbid cells in the scored word's row/col to prevent immediate recreation
@@ -2327,7 +2331,14 @@ function humanAITurn(){
               kills:kills,aiPlayer:aiPlayer,push:best.push
             };
             botTurnPhase=4;
-            // Phase-4-Kommentar (Wort + Bilanz) bleibt sichtbar während Stein-Rückkehr
+            // Bilanz: Bot-Selbstopfer
+            const _botSelfLoss = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
+            if(_botSelfLoss > 0){
+              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills}, verliert ${_botSelfLoss} Bstb..</span>`;
+            } else {
+              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
+            }
+            commentCls="human";
             wordHLMap={};// keep word-box during stone return
             render();
             // Forbid cells in the scored word's row/col to prevent immediate recreation
@@ -2535,7 +2546,14 @@ function humanAITurn(){
               kills:kills,aiPlayer:aiPlayer,push:best.push
             };
             botTurnPhase=4;
-            // Phase-4-Kommentar (Wort + Bilanz) bleibt sichtbar während Stein-Rückkehr
+            // Bilanz: Bot-Selbstopfer
+            const _botSelfLoss = best.push.result.removed.filter(x => x.owner === aiPlayer).length;
+            if(_botSelfLoss > 0){
+              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills}, verliert ${_botSelfLoss} Bstb..</span>`;
+            } else {
+              comment=`<span style="color:#93c5fd">Bot gewinnt ${kills} Bstb..</span>`;
+            }
+            commentCls="human";
             wordHLMap={};// keep word-box during stone return
             render();
             // Forbid cells in the scored word's row/col to prevent immediate recreation
