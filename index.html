@@ -216,7 +216,7 @@ function findWordsInLine(cells){
 }
 
 function findAllWords(b){
-  const all=[],used=new Set();
+  const all=[];
   for(let y=0;y<G;y++){
     const row=[];for(let x=0;x<G;x++)row.push(b[K(x,y)]||null);
     const ws=findWordsInLine(row);
@@ -229,8 +229,16 @@ function findAllWords(b){
     ws.forEach(w=>{w.cells=[];for(let i=w.start;i<=w.end;i++)w.cells.push(K(x,i));w.dir="col";});
     all.push(...ws);
   }
-  all.forEach(w=>{const key=w.cells.join("|")+w.word;if(used.has(key))return;used.add(key);});
-  return all.filter((w,i,a)=>a.findIndex(x=>x.cells.join("|")+x.word===w.cells.join("|")+w.word)===i);
+  // O(n) dedup über Set
+  const seen=new Set();
+  const result=[];
+  for(const w of all){
+    const key=w.cells.join("|")+w.word;
+    if(seen.has(key))continue;
+    seen.add(key);
+    result.push(w);
+  }
+  return result;
 }
 
 function getNewWords(before,after){
@@ -534,7 +542,12 @@ function kiPickBestMove(b,player,sac,humanKills){
   const botMoves=evalMoves(b,player,bSet,20);
   if(!botMoves.length)return null;
   botMoves.sort((a,c)=>c.score-a.score);
-  const wordCands=botMoves.filter(m=>m.move.word);
+  // Sharp: wie Nice/Great — Wort-Züge müssen mindestens 1 Spieler-Stein eliminieren
+  const wordCands=botMoves.filter(m=>{
+    if(!m.move.word) return false;
+    const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
+    return kills >= 1;
+  });
   // H1: keep top non-word moves with >=2 kills in the pool so Sharp can pick trades over weak words
   const highKillCands=botMoves.filter(m=>!m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=2);
   const candPool=wordCands.length>0?wordCands.concat(highKillCands.slice(0,4)):botMoves;
@@ -634,11 +647,7 @@ const BOARD_POOL=[
   {name:"PEROXYD",rows:[["P","E","R","O","X","Y","D"],["W","E","L","C","H","E","R"],["Ö","L","K","A","N","N","E"],["A","S","I","A","T","I","N"],["L","O","B","L","I","E","D"],["Z","I","R","K","E","L","H"],["H","A","U","S","R","A","T"]]},
   {name:"GLOSSAR",rows:[["G","L","O","S","S","A","R"],["A","U","F","L","Ä","D","T"],["D","R","E","H","T","Ü","R"],["T","E","R","Z","I","N","E"],["B","E","F","R","E","I","T"],["R","E","G","E","L","N","B"],["E","I","N","T","R","A","G"]]},
   {name:"AMYLASE",rows:[["A","M","Y","L","A","S","E"],["I","H","R","I","G","E","N"],["T","R","I","P","E","L","N"],["W","U","R","S","T","I","G"],["D","I","K","T","I","O","N"],["S","T","O","F","F","E","F"],["F","A","H","N","D","E","R"]]}
-]
-
-// ═══ CONSTANTS ═══
-const P1=1,P2=2,G=7,CELL=42,GAP=2;
-const DIRS=[{dx:1,dy:0,n:"→"},{dx:-1,dy:0,n:"←"},{dx:0,dy:1,n:"↓"},{dx:0,dy:-1,n:"↑"},
+,
 {name:"HOMMAGE",rows:[["H","O","M","M","A","G","E"],["F","A","V","O","R","I","T"],["T","I","L","G","U","N","G"],["D","E","K","A","N","A","T"],["A","R","M","B","A","N","D"],["A","B","W","E","H","R","M"],["H","A","U","S","R","A","T"]]},
 {name:"LOBLIED",rows:[["L","O","B","L","I","E","D"],["P","I","R","A","T","E","N"],["D","I","E","N","E","R","N"],["S","T","I","L","E","T","T"],["L","E","O","P","A","R","D"],["A","R","M","A","D","A","B"],["G","E","H","I","R","N","E"]]},
 {name:"EUGENIK",rows:[["E","U","G","E","N","I","K"],["B","U","C","K","E","L","N"],["L","Y","R","I","K","E","R"],["T","O","R","N","A","D","O"],["O","K","T","A","V","E","N"],["B","A","L","S","A","M","Z"],["G","E","L","E","H","R","T"]]},
@@ -704,7 +713,11 @@ const DIRS=[{dx:1,dy:0,n:"→"},{dx:-1,dy:0,n:"←"},{dx:0,dy:1,n:"↓"},{dx:0,d
 {name:"PELIKAN",rows:[["P","E","L","I","K","A","N"],["G","E","D","A","N","K","E"],["B","E","G","O","N","I","E"],["K","A","S","T","R","A","T"],["P","A","R","K","E","T","T"],["P","H","Y","S","I","K","P"],["K","A","L","I","B","E","R"]]},
 {name:"JAHRAUS",rows:[["J","A","H","R","A","U","S"],["K","E","T","C","H","U","P"],["B","A","R","B","I","E","R"],["P","R","Ü","F","U","N","G"],["W","E","R","D","E","N","D"],["P","S","Y","C","H","E","I"],["L","Y","R","I","K","E","R"]]},
 {name:"SPIRALE",rows:[["S","P","I","R","A","L","E"],["G","I","T","A","R","R","E"],["B","A","R","I","T","O","N"],["P","A","P","Y","R","U","S"],["H","A","M","S","T","E","R"],["M","O","S","A","I","K","S"],["W","I","R","K","U","N","G"]]}
-];
+]
+
+// ═══ CONSTANTS ═══
+const P1=1,P2=2,G=7,CELL=42,GAP=2;
+const DIRS=[{dx:1,dy:0,n:"→"},{dx:-1,dy:0,n:"←"},{dx:0,dy:1,n:"↓"},{dx:0,dy:-1,n:"↑"}];
 // ═══ STATE ═══
 let board={},turn=P1,humanPlayer=P1,aiPlayer=P2,humanStartsGame=true;
 let simPhase="intro",kiLevel=2,playerName="";
@@ -726,7 +739,8 @@ let botReturnSnap=null;// saved board state before stones return
 let _stonesReturning=false;
 let _hiddenWord=null;// word hidden by findSmartReturnSlots for current turn
 let _gameWinner=null;// P1 or P2, by checkGameEnd
-let _finalQuoteShownThisGame=false;// reset in startGame, true after first film quote
+let _finalQuoteShownThisGame=false;// reset in fullReset und startGame, true after first film quote
+let _botSeq=0;// bot-turn sequence counter — incremented every humanAITurn, captured in closures to validate timing-sensitive callbacks (film quote 3s delay, bilanz 2.5s pause)
 let _hiddenBoard=null;// board state when hidden word found
 let _humanSacrificed=false;// true when human lost own stones last turn — Sharp forced into defense
 let _lastHumanKills=0;// kills scored by human last turn — for Sharp kadenz matching
@@ -1037,7 +1051,7 @@ function findWordsInLine(cells){
 }
 
 function findAllWords(b){
-  const all=[],used=new Set();
+  const all=[];
   for(let y=0;y<G;y++){
     const row=[];for(let x=0;x<G;x++)row.push(b[K(x,y)]||null);
     const ws=findWordsInLine(row);
@@ -1050,8 +1064,16 @@ function findAllWords(b){
     ws.forEach(w=>{w.cells=[];for(let i=w.start;i<=w.end;i++)w.cells.push(K(x,i));w.dir="col";});
     all.push(...ws);
   }
-  all.forEach(w=>{const key=w.cells.join("|")+w.word;if(used.has(key))return;used.add(key);});
-  return all.filter((w,i,a)=>a.findIndex(x=>x.cells.join("|")+x.word===w.cells.join("|")+w.word)===i);
+  // O(n) dedup über Set
+  const seen=new Set();
+  const result=[];
+  for(const w of all){
+    const key=w.cells.join("|")+w.word;
+    if(seen.has(key))continue;
+    seen.add(key);
+    result.push(w);
+  }
+  return result;
 }
 
 function wordKey(w){return w.dir+w.cells.join("|")+w.word;}
@@ -1355,11 +1377,8 @@ function wordsToBoxes(words){
     return{left:pad+minX*cs,top:pad+minY*cs,width:(maxX-minX+1)*cs-GAP,height:(maxY-minY+1)*cs-GAP,col,border,shadow,cells:new Set(w.cells)};
   });
 }
-function getWordCellKeys(){
-  const s=new Set();
-  for(const b of activeWordBoxes)if(b.cells)b.cells.forEach(c=>s.add(c));
-  return s;
-}
+// (function getWordCellKeys removed — dead code)
+
 function applyWordHL(newWords){
   wordHLMap={};
   if(newWords.length>0 && window.SHOVEAUDIO) window.SHOVEAUDIO.playWord();
@@ -1375,10 +1394,8 @@ function applyWordHL(newWords){
 }
 
 // ═══ HISTORY ═══
-function saveSnap(){
-  history.push(JSON.stringify({board,turn,simPhase,comment,commentCls,moveNum,gameEnding,wordHLMap,hPhase,hSel,hDest,humanPlayer,aiPlayer,prevBoard}));
-  if(history.length>1)history.shift();// max 1 undo step
-}
+// (function saveSnap removed — dead code)
+
 function restoreSnap(snap){
   const s=snap;board=s.board;turn=s.turn;simPhase=s.simPhase;comment=s.comment;commentCls=s.commentCls;
   moveNum=s.moveNum;gameEnding=s.gameEnding||false;wordHLMap=s.wordHLMap||{};
@@ -1388,7 +1405,8 @@ function restoreSnap(snap){
 }
 
 // ═══ BOT AI ═══
-function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+// (function shuffled removed — dead code)
+
 function kiScore(myCount,oppCount,eliminated,stonesBack,longestWord,oppAfter,isJump){
   // Level-specific weights
   // Nice:  elim-heavy, weak word bonus → plays like a casual human
@@ -1667,7 +1685,12 @@ function kiPickBestMove(b,player,sac,humanKills){
   const botMoves=evalMoves(b,player,bSet,20);
   if(!botMoves.length)return null;
   botMoves.sort((a,c)=>c.score-a.score);
-  const wordCands=botMoves.filter(m=>m.move.word);
+  // Sharp: wie Nice/Great — Wort-Züge müssen mindestens 1 Spieler-Stein eliminieren
+  const wordCands=botMoves.filter(m=>{
+    if(!m.move.word) return false;
+    const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
+    return kills >= 1;
+  });
   // H1: keep top non-word moves with >=2 kills in the pool so Sharp can pick trades over weak words
   const highKillCands=botMoves.filter(m=>!m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=2);
   const candPool=wordCands.length>0?wordCands.concat(highKillCands.slice(0,4)):botMoves;
@@ -1753,6 +1776,7 @@ function startGame(){
   moveNum=0;_botMoveCount=0;gameEnding=false;wordHLMap={};comment="";commentCls="";
   history=[];snapBot=null;snapHuman=null;backAvailable=false;lastCompleted=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;returnedKeys=new Set();prevBoard=null;postPushBoard=null;
   gameStats={p1elim:0,p1words:0,p1ret:0,p2elim:0,p2words:0,p2ret:0,missedMoves:[]};
+  _gameWinner=null;_finalQuoteShownThisGame=false;_botSeq=0;
   simPhase="pushing";
 }
 
@@ -2179,6 +2203,7 @@ function humanAITurn(){
   if(gameEnding)return;
   _hiddenWord=null;_hiddenBoard=null;// clear stale hidden word from prior turn
   backAvailable=false;
+  _botSeq++;// new bot turn: invalidate any pending closures from earlier turns
   // Sprechblase vom letzten Spieler-Zug ausblenden, wenn Bot anfängt zu denken
   if(window.SHOVECHAT) window.SHOVECHAT.hideBox();
   snapBot=JSON.stringify({board,turn,simPhase,comment,commentCls,moveNum,gameEnding,wordHLMap,hPhase,hSel,hDest,humanPlayer,aiPlayer,prevBoard});
@@ -2193,7 +2218,7 @@ function humanAITurn(){
         if(_w.onmessage)_w.onmessage({data:{best:null}});
       },5000);
       _w.onerror=function(){clearTimeout(_botTimeout);_workerFailed=true;_aiWorker=null;if(_w.onmessage)_w.onmessage({data:{best:null}});};
-      _w.onmessage=function(ev){clearTimeout(_botTimeout);
+      _w.onmessage=function _onmsg(ev){clearTimeout(_botTimeout);
         // === FILMZITAT vor Bot-Ankündigung ===
         // Prüfe BEVOR die Ankündigungs-Logik startet: würde dieser Zug zum Sieg führen?
         const _qBest = ev.data && ev.data.best;
@@ -2203,10 +2228,14 @@ function humanAITurn(){
           if(_qHCnt - _qHKill < 4){
             _finalQuoteShownThisGame = true;
             window.SHOVECHAT.showFinalQuote();
-            // 3s pause, dann handler nochmal aufrufen (jetzt feuert er nicht erneut, weil flag gesetzt)
+            // 3s pause, dann handler nochmal aufrufen — Sequenz-Token verhindert dass ein
+            // ZURÜCK in der Zwischenzeit die Logik trotzdem laufen lässt
             const _savedEv = ev;
-            const _savedHandler = arguments.callee;
-            setTimeout(()=>{ _savedHandler(_savedEv); }, 3000);
+            const _savedSeq = _botSeq;
+            setTimeout(()=>{ 
+              if(_botSeq !== _savedSeq) return;// stale: ZURÜCK oder neuer Turn dazwischen
+              _onmsg(_savedEv); 
+            }, 3000);
             return;
           }
         }
@@ -2365,10 +2394,10 @@ function humanAITurn(){
               activeWordBoxes=[];
               backAvailable=true;lastCompleted="bot";
               // Längere Pause (2.5s) damit Bilanz lesbar bleibt vor dem nächsten Zug
-              pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);
+              pendingNextTurn=null;{const _bsq=_botSeq;setTimeout(()=>{if(_botSeq!==_bsq)return;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);}
               render();
             },_forbiddenB);
-            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);render();}
+            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;{const _bsq=_botSeq;setTimeout(()=>{if(_botSeq!==_bsq)return;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);}render();}
             render();
           });
         } else {
@@ -2443,8 +2472,12 @@ function humanAITurn(){
       if(_qHCnt - _qHKill < 4){
         _finalQuoteShownThisGame = true;
         window.SHOVECHAT.showFinalQuote();
-        // 3s warten, dann Fallback komplett neu auslösen (Best wird neu berechnet — selbe Logik)
-        setTimeout(()=>{ humanAITurn(); }, 3000);
+        // 3s warten, dann Fallback komplett neu auslösen — _botSeq schützt gegen ZURÜCK dazwischen
+        const _savedSeq2 = _botSeq;
+        setTimeout(()=>{ 
+          if(_botSeq !== _savedSeq2) return;// stale
+          humanAITurn(); 
+        }, 3000);
         return;
       }
     }
@@ -2583,10 +2616,10 @@ function humanAITurn(){
               activeWordBoxes=[];
               backAvailable=true;lastCompleted="bot";
               // Längere Pause (2.5s) damit Bilanz lesbar bleibt vor dem nächsten Zug
-              pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);
+              pendingNextTurn=null;{const _bsq=_botSeq;setTimeout(()=>{if(_botSeq!==_bsq)return;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);}
               render();
             },_forbiddenB);
-            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;setTimeout(()=>{turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);render();}
+            if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;{const _bsq=_botSeq;setTimeout(()=>{if(_botSeq!==_bsq)return;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);}render();}
             render();
           });
         } else {
@@ -3945,54 +3978,6 @@ fullReset();render();
         "Zurück, dann besser. So funktioniert das.",
       ],
     },
-    
-    // Trigger 18 — Spieler gewinnt
-    player_wins: {
-      sharp: [
-        "Du hast mich besiegt{name_comma}. Sauber gespielt — das war kein Glück.",
-        "Ich verliere — und du hast es verdient. Selbstironie hilft mir grad.",
-        "Stark{name_comma}. Wirklich stark. Bis bald.",
-        "Du warst heute besser. Glückwunsch.",
-        "Manchmal verliere ich. Heute war heute.",
-        "Du hast mich überrascht. Das ehrt dich.",
-        "Großer Sieg. Ich verneige mich.",
-        "Ich habe verloren — und gelernt. So sollte es sein.",
-      ],
-      default: [
-        "Du hast mich besiegt{name_comma}. Sauber gespielt.",
-        "Gut gemacht. Ich erkenne das an.",
-        "Ich verliere — und du hast es verdient.",
-        "Stark{name_comma}.",
-        "Du warst heute besser.",
-        "Glückwunsch.",
-        "Manchmal verliere ich.",
-        "Du hast mich überrascht.",
-        "Bis zum nächsten Mal.",
-      ],
-    },
-    
-    // Trigger 19 — Bot gewinnt
-    bot_wins: {
-      sharp: [
-        "Knapp{name_comma}. Du warst nah dran. Bei nächsten Mal kommst du näher.",
-        "Ein gutes Spiel. Wir spielen wieder — du wirst stärker.",
-        "Ich habe gewonnen — aber nicht leicht. Das hat mir Spaß gemacht.",
-        "Eng. Ich war auf der Hut die ganze Partie.",
-        "Stark gespielt{name_comma}. Wirklich.",
-        "Solche Spiele machen mir Freude. Auch wenn ich gewinne — knapp.",
-        "Du wirst besser. Das sehe ich. Beim nächsten Mal kippt's vielleicht andersrum.",
-      ],
-      default: [
-        "Knapp{name_comma}.",
-        "Ein gutes Spiel. Wir spielen wieder.",
-        "Ich habe gewonnen — aber nicht leicht.",
-        "Du machst es mir nicht einfach.",
-        "Heute ich, morgen vielleicht du.",
-        "Stark gespielt{name_comma}.",
-        "Eng.",
-        "Du wirst besser.",
-      ],
-    },
   };
   
   function fmtName(text){
@@ -4233,11 +4218,8 @@ if(txt){ showBox(txt); return; }
     if(txt) showBox(txt);
   }
   
-  function onGameEnd(playerWon){
-    if(!STATE.on) return;
-    const txt = pick(playerWon ? 'player_wins' : 'bot_wins');
-    if(txt) showBox(txt);
-  }
+  // (onGameEnd entfernt — Spielende-Sprechblase ist bewusst deaktiviert)
+
   
   function recordBotWord(word){
     if(!word) return;
@@ -4432,7 +4414,7 @@ if(txt){ showBox(txt); return; }
   }
   
   window.SHOVECHAT = {
-    onPlayerMove, onBoardDelta, onBotMove, onBackUsed, onGameEnd, onPlayerEndgameTrap,
+    onPlayerMove, onBoardDelta, onBotMove, onBackUsed, onPlayerEndgameTrap,
     showFinalQuote,
     recordBotWord, checkBotWordDestroyed, reset, setEnabled, isOn, hideBox,
   };
