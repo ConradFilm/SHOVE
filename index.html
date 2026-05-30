@@ -1407,6 +1407,7 @@ function restoreSnap(snap){
   moveNum=s.moveNum;gameEnding=s.gameEnding||false;wordHLMap=s.wordHLMap||{};
   hPhase=s.hPhase||"idle";hSel=s.hSel||null;hDest=s.hDest||null;
   humanPlayer=s.humanPlayer||P1;aiPlayer=s.aiPlayer||P2;prevBoard=s.prevBoard||null;
+  if(typeof s._botMoveCount==="number")_botMoveCount=s._botMoveCount;// ZURÜCK setzt Bot-Zug-Zähler korrekt zurück
   for(const k in board){if(board[k]&&board[k].ch===undefined){const{x,y}=PK(k);board[k].ch=letterAt(x,y)||"?";}} // restore
 }
 
@@ -2212,7 +2213,7 @@ function humanAITurn(){
   _botSeq++;// new bot turn: invalidate any pending closures from earlier turns
   // Sprechblase vom letzten Spieler-Zug ausblenden, wenn Bot anfängt zu denken
   if(window.SHOVECHAT) window.SHOVECHAT.hideBox();
-  snapBot=JSON.stringify({board,turn,simPhase,comment,commentCls,moveNum,gameEnding,wordHLMap,hPhase,hSel,hDest,humanPlayer,aiPlayer,prevBoard});
+  snapBot=JSON.stringify({board,turn,simPhase,comment,commentCls,moveNum,gameEnding,wordHLMap,hPhase,hSel,hDest,humanPlayer,aiPlayer,prevBoard,_botMoveCount});
   turn=aiPlayer;kiSelPos=null;
   comment=botThinkingMsg();commentCls="ai";render();
   timer=setTimeout(()=>{
@@ -4143,6 +4144,10 @@ if(txt){ showBox(txt); return; }
   
   function onBackUsed(){
     if(!STATE.on) return;
+    // Schweigen wenn Spieler noch keinen eigenen Zug abgeschlossen hat.
+    // moveNum === 1 heißt: nur der allererste Bot-Zug ist passiert, Spieler war noch nicht dran.
+    // Dann ergibt ein ZURÜCK-Kommentar wie "Du machst es spannend" keinen Sinn.
+    if(typeof moveNum !== "undefined" && moveNum <= 1) return;
     const txt = pick('used_back');
     if(txt) showBox(txt);
   }
