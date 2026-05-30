@@ -1207,19 +1207,22 @@ function findSmartReturnSlots(player, count, empty) {
 function returnStonesAnimated(player,count,onDone,forbiddenKeys){
   _stonesReturning=true;
   const forbidden=new Set(forbiddenKeys||[]);
-  // All currently empty cells, excluding forbidden positions
+  // Spielregel: Es kommen GENAU SO VIELE Steine zurück wie gegnerische Steine eliminiert wurden.
+  // Strategie: erst nur erlaubte Zellen (Wort-Reihe gesperrt); falls nicht genug, schrittweise lockern.
   let empty=[];
   for(let y=0;y<G;y++)for(let x=0;x<G;x++){
     const k=K(x,y);if(!board[k]&&!forbidden.has(k))empty.push({k,x,y});
   }
-  // Fallback: if cells forbidden, use empty cells
-  if(empty.length===0){
+  // Lockerung 1: wenn forbidden zu eng — verbotene Zellen wieder aufnehmen
+  if(empty.length<count){
+    const usedKeys=new Set(empty.map(e=>e.k));
     for(let y=0;y<G;y++)for(let x=0;x<G;x++){
-      const k=K(x,y);if(!board[k])empty.push({k,x,y});
+      const k=K(x,y);if(!board[k]&&!usedKeys.has(k))empty.push({k,x,y});
     }
   }
   for(let i=empty.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[empty[i],empty[j]]=[empty[j],empty[i]];}
-  const actual=Math.min(count,empty.length);
+  // Nach Lockerung ist immer genug Platz da: 49 Felder − belegte ≥ Kills + Push-Origin.
+  const actual=count;
   if(actual===0){_stonesReturning=false;if(onDone)setTimeout(()=>onDone(0),400);return 0;}
   _returnTimers.forEach(t=>clearTimeout(t));_returnTimers=[];
   const _smartSlots=findSmartReturnSlots(player,actual,empty);
