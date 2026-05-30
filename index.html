@@ -109,11 +109,16 @@ body{min-height:100dvh;background:linear-gradient(160deg,#0a1628,#0d2137 40%,#0f
 </div>
 <script>
 window.onerror=function(msg,src,line,col,err){
+  // "Script error. (line 0)" mit leerem src = Cross-Origin-Fehler von ausserhalb (Safari-intern, Erweiterungen, Teilen-Vorgang).
+  // Solche Fehler kann unser Code nicht beheben — wir blenden sie aus, damit sie nicht den Banner triggern.
+  if(msg==='Script error.' && !src && line===0){
+    return false;
+  }
   const app=document.getElementById('app');
   if(app){
     const d=document.createElement('div');
     d.style.cssText='position:fixed;top:0;left:0;right:0;background:#7f1d1d;color:#fca5a5;padding:8px;font-size:11px;z-index:999;font-family:monospace';
-    d.textContent='JS Error: '+msg+' (line '+line+')';
+    d.textContent='JS Error: '+msg+' (line '+line+(src?', '+src.split('/').pop():'')+')';
     document.body.prepend(d);
     setTimeout(()=>d.remove(),8000);
   }
