@@ -3047,6 +3047,9 @@ let _onBackLock=false;
 function onBack(){
   if(_onBackLock)return;
   _onBackLock=true;setTimeout(()=>{_onBackLock=false;},600);
+  // ZURÜCK invalidiert alle laufenden Timeouts aus dem aktuellen Bot-Zug
+  // (z.B. 2.5s-Pause vor startHumanTurn → würde sonst kurz "Dein Zug." anzeigen)
+  _botSeq++;
   // Decide which snap to use:
   // - Human mid-turn (selected or jumped) → restore start of human turn
   // - Otherwise → restore start of bot's last turn
