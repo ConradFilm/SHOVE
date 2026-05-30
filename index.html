@@ -3075,12 +3075,14 @@ function onBack(){
   const wz=document.getElementById("wordZoneMob");if(wz)wz.innerHTML="";
   wordHLMap={};returnedKeys=new Set();
   restoreSnap(JSON.parse(snap));
+  // Sofort den alten Kommentar überschreiben, damit kein Flackern entsteht
+  // wenn ZURÜCK auf einen Bot-Zug erfolgt (sonst sieht man kurz den alten Spieler-Kommentar)
+  if(lastCompletedWasBot){comment=botThinkingMsg();commentCls="ai";}
   kiSelPos=null;kiWordHL={};returnedKeys=new Set();
   wordHLMap={};activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;botTurnPhase=0;botReturnSnap=null;
   hSel=null;hDest=null;hJumpDone=false;
   snapHuman=null;if(lastCompletedWasBot)snapBot=null;backAvailable=false;lastCompleted=null;
   if(lastCompletedWasBot){
-    comment=botThinkingMsg();commentCls="ai";
     turn=aiPlayer;
     render();
     timer=setTimeout(()=>humanAITurn(),1500);
