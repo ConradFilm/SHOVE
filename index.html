@@ -473,7 +473,7 @@ function kiPickBestMove(b,player,sac,humanKills){
   // Nice: jumps included but fewer candidates, more randomness
   if(kiLevel===1){
     // Self-defense kicks in at <=14 stones — Bot starts placing stones smartly to avoid traps
-    if(cnt(b,player)<=14){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
+    if(cnt(b,player)<=14 && Math.random()<(kiLevel===1?0.5:0.8)){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const oppCount1=cnt(b,opp);const myCount1=cnt(b,player);
     const inEndgame=oppCount1<=6||myCount1<=8;
     const moves=evalMoves(b,player,bSet,inEndgame?20:8);
@@ -506,7 +506,7 @@ function kiPickBestMove(b,player,sac,humanKills){
   // Great: prefer word moves, pick best by score
   if(kiLevel===2){
     // Self-defense kicks in at <=14 stones — same behavior as Sharp/Nice for endgame consistency
-    if(cnt(b,player)<=14){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
+    if(cnt(b,player)<=14 && Math.random()<(kiLevel===1?0.5:0.8)){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const moves=evalMoves(b,player,bSet,20);
     if(!moves.length)return null;
     // Wort-Züge nur wenn sie auch mindestens 1 Kill bringen — sonst ist es ein Selbstopfer ohne Gegenwert
@@ -1638,7 +1638,7 @@ function kiPickBestMove(b,player,sac,humanKills){
   // Nice: jumps included but fewer candidates, more randomness
   if(kiLevel===1){
     // Self-defense kicks in at <=14 stones — Bot starts placing stones smartly to avoid traps
-    if(cnt(b,player)<=14){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
+    if(cnt(b,player)<=14 && Math.random()<(kiLevel===1?0.5:0.8)){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const oppCount1=cnt(b,opp);const myCount1=cnt(b,player);
     const inEndgame=oppCount1<=6||myCount1<=8;
     const moves=evalMoves(b,player,bSet,inEndgame?20:8);
@@ -1671,7 +1671,7 @@ function kiPickBestMove(b,player,sac,humanKills){
   // Great: prefer word moves, pick best by score
   if(kiLevel===2){
     // Self-defense kicks in at <=14 stones — same behavior as Sharp/Nice for endgame consistency
-    if(cnt(b,player)<=14){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
+    if(cnt(b,player)<=14 && Math.random()<(kiLevel===1?0.5:0.8)){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const moves=evalMoves(b,player,bSet,20);
     if(!moves.length)return null;
     // Wort-Züge nur wenn sie auch mindestens 1 Kill bringen — sonst ist es ein Selbstopfer ohne Gegenwert
@@ -2718,7 +2718,7 @@ function render(){
         <button class="ctrl-btn" onclick="simPhase='rules';render()" style="padding:13px;font-size:11px;letter-spacing:2px;width:100%">📖 SO GEHT'S</button>
       </div>
       <div style="margin-top:28px;font-size:9px;color:rgba(255,255,255,.25);letter-spacing:2px;line-height:1.8;text-align:center">SHOVE™ · © 2026 Marc Conrad<br>nach OVERBOARD von Alex Randolph</div>
-      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v1.3</div>
+      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v1.4</div>
     </div>`;
     return;
   }
