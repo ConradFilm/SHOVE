@@ -485,7 +485,7 @@ function kiPickBestMove(b,player,sac,humanKills){
         const bestKills=best?best.move.result.removed.filter(x=>x.owner!==player).length:0;
         return kills>bestKills?m:best;
       },null);
-      if(maxKill&&maxKill.move.result.removed.filter(x=>x.owner!==player).length>=1)return maxKill.move;
+      if(maxKill&&maxKill.move.result.removed.filter(x=>x.owner!==player).length>=1 && Math.random()<0.6)return maxKill.move;
     }
     // Always prefer word moves WITH KILL — pick randomly among them
     // Wort ohne Kill ist mathematisch ein Verlust-Zug, daher filtern wir solche raus
@@ -494,7 +494,7 @@ function kiPickBestMove(b,player,sac,humanKills){
       const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
       return kills >= 1;
     });
-    if(wordMoves.length>0){
+    if(wordMoves.length>0 && Math.random()<0.5){
       return wordMoves[Math.floor(Math.random()*wordMoves.length)].move;
     }
     // No word moves: pick from top 55% randomly
@@ -1650,7 +1650,7 @@ function kiPickBestMove(b,player,sac,humanKills){
         const bestKills=best?best.move.result.removed.filter(x=>x.owner!==player).length:0;
         return kills>bestKills?m:best;
       },null);
-      if(maxKill&&maxKill.move.result.removed.filter(x=>x.owner!==player).length>=1)return maxKill.move;
+      if(maxKill&&maxKill.move.result.removed.filter(x=>x.owner!==player).length>=1 && Math.random()<0.6)return maxKill.move;
     }
     // Always prefer word moves WITH KILL — pick randomly among them
     // Wort ohne Kill ist mathematisch ein Verlust-Zug, daher filtern wir solche raus
@@ -1659,7 +1659,7 @@ function kiPickBestMove(b,player,sac,humanKills){
       const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
       return kills >= 1;
     });
-    if(wordMoves.length>0){
+    if(wordMoves.length>0 && Math.random()<0.5){
       return wordMoves[Math.floor(Math.random()*wordMoves.length)].move;
     }
     // No word moves: pick from top 55% randomly
@@ -2718,7 +2718,7 @@ function render(){
         <button class="ctrl-btn" onclick="simPhase='rules';render()" style="padding:13px;font-size:11px;letter-spacing:2px;width:100%">📖 SO GEHT'S</button>
       </div>
       <div style="margin-top:28px;font-size:9px;color:rgba(255,255,255,.25);letter-spacing:2px;line-height:1.8;text-align:center">SHOVE™ · © 2026 Marc Conrad<br>nach OVERBOARD von Alex Randolph</div>
-      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v1.2</div>
+      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v1.3</div>
     </div>`;
     return;
   }
