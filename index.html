@@ -297,7 +297,7 @@ function kiScore(myCount,oppCount,eliminated,stonesBack,longestWord,oppAfter,isJ
   // (own stone sacrificed, no reward since reward = opponent kills). Applies to all levels.
   if(longestWord>=4 && eliminated===0) sc -= 200;
   // Nice: occasional random move to feel human
-  const noise=kiLevel===1?Math.random()*18-6 : kiLevel===2?Math.random()*4 : Math.random()*0.5;
+  const noise=kiLevel===1?Math.random()*18-6 : kiLevel===2?Math.random()*8 : Math.random()*0.5;
   sc+=noise;
   return sc;
 }
@@ -506,8 +506,8 @@ function kiPickBestMove(b,player,sac,humanKills){
 
   // Great: prefer word moves, pick best by score
   if(kiLevel===2){
-    // Self-defense kicks in at <=14 stones — same behavior as Sharp/Nice for endgame consistency
-    if(cnt(b,player)<=14 && Math.random()<(kiLevel===1?0.5:0.8)){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
+    // Self-defense kicks in at <=14 stones — mild: Great verteidigt weniger zuverlaessig (0.55)
+    if(cnt(b,player)<=14 && Math.random()<0.55){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const moves=evalMoves(b,player,bSet,20);
     if(!moves.length)return null;
     // Wort-Züge nur wenn sie auch mindestens 1 Kill bringen — sonst ist es ein Selbstopfer ohne Gegenwert
@@ -517,7 +517,9 @@ function kiPickBestMove(b,player,sac,humanKills){
       return kills >= 1;
     });
     const pool=wordMoves.length>0?wordMoves:moves;
-    return pool.reduce((a,c)=>c.score>a.score?c:a,pool[0]).move;
+    pool.sort((a,c)=>c.score-a.score);
+    const top=pool.slice(0,Math.min(3,pool.length));
+    return top[Math.floor(Math.random()*top.length)].move;
   }
 
   // Sharp self-defense: <=14 stones, OR relatively close to opponent (+2), OR forced after human sacrifice
@@ -1465,7 +1467,7 @@ function kiScore(myCount,oppCount,eliminated,stonesBack,longestWord,oppAfter,isJ
   // (own stone sacrificed, no reward since reward = opponent kills). Applies to all levels.
   if(longestWord>=4 && eliminated===0) sc -= 200;
   // Nice: occasional random move to feel human
-  const noise=kiLevel===1?Math.random()*18-6 : kiLevel===2?Math.random()*4 : Math.random()*0.5;
+  const noise=kiLevel===1?Math.random()*18-6 : kiLevel===2?Math.random()*8 : Math.random()*0.5;
   sc+=noise;
   return sc;
 }
@@ -1674,8 +1676,8 @@ function kiPickBestMove(b,player,sac,humanKills){
 
   // Great: prefer word moves, pick best by score
   if(kiLevel===2){
-    // Self-defense kicks in at <=14 stones — same behavior as Sharp/Nice for endgame consistency
-    if(cnt(b,player)<=14 && Math.random()<(kiLevel===1?0.5:0.8)){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
+    // Self-defense kicks in at <=14 stones — mild: Great verteidigt weniger zuverlaessig (0.55)
+    if(cnt(b,player)<=14 && Math.random()<0.55){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const moves=evalMoves(b,player,bSet,20);
     if(!moves.length)return null;
     // Wort-Züge nur wenn sie auch mindestens 1 Kill bringen — sonst ist es ein Selbstopfer ohne Gegenwert
@@ -1685,7 +1687,9 @@ function kiPickBestMove(b,player,sac,humanKills){
       return kills >= 1;
     });
     const pool=wordMoves.length>0?wordMoves:moves;
-    return pool.reduce((a,c)=>c.score>a.score?c:a,pool[0]).move;
+    pool.sort((a,c)=>c.score-a.score);
+    const top=pool.slice(0,Math.min(3,pool.length));
+    return top[Math.floor(Math.random()*top.length)].move;
   }
 
   // Sharp self-defense: <=14 stones, OR relatively close to opponent (+2), OR forced after human sacrifice
@@ -2722,7 +2726,7 @@ function render(){
         <button class="ctrl-btn" onclick="simPhase='rules';render()" style="padding:13px;font-size:11px;letter-spacing:2px;width:100%">📖 SO GEHT'S</button>
       </div>
       <div style="margin-top:28px;font-size:9px;color:rgba(255,255,255,.25);letter-spacing:2px;line-height:1.8;text-align:center">SHOVE™ · © 2026 Marc Conrad<br>nach OVERBOARD von Alex Randolph</div>
-      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v1.6</div>
+      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v1.7</div>
     </div>`;
     return;
   }
