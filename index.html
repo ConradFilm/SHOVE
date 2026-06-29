@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SHOVE">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a1628">
@@ -53,7 +54,9 @@ body{min-height:100dvh;background:linear-gradient(160deg,#0a1628,#0d2137 40%,#0f
 .tile.p2{background:#9b6ab5;border-color:#7a4a94;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
 .tile.active-sel{box-shadow:0 0 0 3px #fff,0 0 0 5px #e07820,0 0 20px rgba(224,120,32,.8)!important;transform:scale(1.12);z-index:10;filter:brightness(1.15)}
 .active-jumped{box-shadow:0 0 0 3px #fff,0 0 0 5px #93c5fd,0 0 20px rgba(147,197,253,.8)!important;transform:scale(1.12);z-index:10;filter:brightness(1.15)}
-.tile.returned{animation:stoneReturn 1.6s cubic-bezier(.2,.5,.3,1) forwards;box-shadow:0 0 22px 8px rgba(255,200,60,.6),0 0 8px 2px rgba(255,230,100,.4),0 -4px 14px rgba(255,180,30,.3)}
+.tile.returned{position:relative;z-index:5;animation:stoneReturn 1.6s cubic-bezier(.2,.5,.3,1) forwards;box-shadow:0 0 16px 3px rgba(224,120,32,.55),0 0 6px 1px rgba(224,120,32,.4)}
+.tile.p1.returned{box-shadow:0 0 16px 3px rgba(224,120,32,.6),0 0 6px 1px rgba(224,120,32,.45)}
+.tile.p2.returned{box-shadow:0 0 16px 3px rgba(155,106,181,.6),0 0 6px 1px rgba(155,106,181,.45)}
 .cell.h-sel{animation:pulseSel .9s ease-in-out infinite;border-color:rgba(245,158,11,1)!important;background:rgba(245,158,11,.12)!important}
 .cell.h-free{animation:pulseJump 1.4s ease-in-out infinite;cursor:pointer}
 .cell.h-free:hover{background:rgba(96,165,250,.25)!important;border-color:rgba(96,165,250,.7)!important}
@@ -831,6 +834,11 @@ function renderGameover(){
   _lastGameWin=win;_lastGameScore=myCount;_lastGameBotScore=aiCount;
   const wMsg=draw?"UNENTSCHIEDEN":win?"DU GEWINNST!":"BOT GEWINNT!";
   const wCol=draw?"#fff":win?"#4caf50":"#ef4444";
+  // Siegerkachel: "SIEG" in vier Steinen (deine Farbe), Glow + Pop — nur bei Sieg
+  const _sOr=humanPlayer===P1;
+  const _sBg=_sOr?'#e07820':'#9b6ab5',_sBd=_sOr?'#b55e0e':'#7a4a94',_sG=_sOr?'224,120,32':'155,106,181';
+  const _siegTiles='SIEG'.split('').map((sc,si)=>`<div style="width:50px;height:50px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:28px;color:#fff;background:${_sBg};border:2px solid ${_sBd};box-shadow:0 0 22px 5px rgba(${_sG},.55),0 0 8px 2px rgba(${_sG},.4),0 1px 4px rgba(0,0,0,.3);font-family:'Libre Franklin',sans-serif;animation:killBadgeIn .5s cubic-bezier(.2,.7,.3,1) ${(si*0.09).toFixed(2)}s both">${sc}</div>`).join('');
+  const _sieger=`<div style="display:flex;gap:6px;justify-content:center;margin-bottom:8px">${_siegTiles}</div><div style="font-size:13px;font-weight:900;letter-spacing:3px;color:#4caf50;margin-bottom:12px">DU GEWINNST</div>`;
   const myElim=humanPlayer===P1?gameStats.p1elim:gameStats.p2elim;
   const myWords=humanPlayer===P1?gameStats.p1words:gameStats.p2words;
   const myRet=humanPlayer===P1?gameStats.p1ret:gameStats.p2ret;
@@ -907,7 +915,7 @@ function renderGameover(){
     <div class="phase-badge end" style="margin-bottom:8px">🏁 SPIELENDE</div>
     ${playerName?`<div style="font-size:13px;font-weight:900;color:rgba(255,255,255,.7);letter-spacing:3px;margin-bottom:4px">${playerName.toUpperCase()}</div>`:''}
     <div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:3px;margin-bottom:12px">vs. BOT · ${kiLevel===1?'<span style="color:#60a5fa">NICE</span>':kiLevel===2?'<span style="color:#f59e0b">GREAT</span>':'<span style="color:#ef4444">SHARP</span>'}</div>
-    <div style="font-size:24px;font-weight:900;color:${wCol};margin-bottom:12px">${wMsg}</div>
+    ${win?_sieger:`<div style="font-size:24px;font-weight:900;color:${wCol};margin-bottom:12px">${wMsg}</div>`}
     <div style="width:100%;max-width:340px;margin:0 0 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 14px">
       <div style="display:flex;flex-direction:column;gap:8px">
         <div style="display:flex;align-items:center;gap:8px">
@@ -1201,8 +1209,25 @@ function findSmartReturnSlots(player, count, empty) {
     _hiddenBoard=keySlot.wordBoard||null;
   } else{_hiddenWord=null;_hiddenBoard=null;}
   const remaining=empty.filter(e=>!used.has(e.k));
-  for(const {k,x,y} of remaining.slice(0,count-slots.length)){
-    slots.push({k,x,y,ch:ALPHA[Math.floor(Math.random()*ALPHA.length)]});
+  // Sichere Platzierung: meide Abgrund-Randzellen und Selbstfallen-Felder.
+  // Gefährdung(k) = max. eigene Steine, die ein Gegnerschub fegen könnte, läge hier ein Stein.
+  // remaining ist bereits gemischt → stabile Sortierung hält den Zufall innerhalb gleicher Gefährdung.
+  const _exposure=(k)=>{
+    board[k]={owner:player,ch:"A"};
+    let mx=0;
+    for(const p of getPushMoves(board,opponent)){
+      let own=0;
+      for(const r of p.result.removed) if(r.owner===player) own++;
+      if(own>mx)mx=own;
+      if(mx>=4)break;
+    }
+    delete board[k];
+    return mx;
+  };
+  const _scored=remaining.map(e=>({e,risk:_exposure(e.k)}));
+  _scored.sort((a,b)=>a.risk-b.risk);
+  for(const {e} of _scored.slice(0,count-slots.length)){
+    slots.push({k:e.k,x:e.x,y:e.y,ch:ALPHA[Math.floor(Math.random()*ALPHA.length)]});
   }
   return slots;
 }
@@ -1357,10 +1382,10 @@ function animateWordBirth(newWords,onDone){
       if(z)z.style.transition="opacity .6s ease-out";
       if(z)z.style.opacity="0";
       setTimeout(()=>{if(z){z.innerHTML="";z.style.opacity="1";z.style.transition="";}},650);
-    },totalLetterTime+5800);
+    },totalLetterTime+2400);
     _returnTimers.push(fadeTimer);
   },totalLetterTime);
-  const totalTime=totalLetterTime+6500;// 3 breathes + fade
+  const totalTime=totalLetterTime+3000;// gekürzt: ~1 Atemzug + fade (war +6500)
   if(onDone)setTimeout(onDone,totalTime);
 }
 function wordsToBoxesVisible(words, boardState){
@@ -1889,7 +1914,7 @@ function setHumanComment(){
     const col="ABCDEFG"[hSel.x],row=hSel.y+1;
     const dp=getPushesFrom(board,humanPlayer,hSel.x,hSel.y);
     if(!dp.length){comment=`<b>${ch}</b> ${col}${row} — von hier kein Schub möglich. Erst auf ein freies Feld springen.`;commentCls="human";}
-    else{comment=`<b>${ch}</b> ${col}${row} gewählt. Pfeil wählen — oder freies Feld springen.`;commentCls="human";}
+    else{comment=`<b>${ch}</b> ${col}${row} gewählt. Zielfeld antippen — oder freies Feld springen.`;commentCls="human";}
   } else if(hPhase==="jumped"&&hDest){
     const ch=board[K(hDest.x,hDest.y)]?.ch||"?";
     const fc="ABCDEFG"[hSel.x],fr=hSel.y+1,tc="ABCDEFG"[hDest.x],tr=hDest.y+1;
@@ -2750,16 +2775,16 @@ function render(){
     app.innerHTML=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:48px 8px 100px;animation:slideIn .4s ease-out">
       <div class="title-sm" style="margin-bottom:20px">SHOVE – So geht's</div>
       <div style="max-width:360px;font-size:13px;line-height:1.9;color:rgba(255,255,255,.75)">
-        <p style="margin-bottom:14px">7×7 Brett, 48 Buchstaben, ein leeres Feld. <b style="color:#e07820">Orange</b> gegen <b style="color:#9b6ab5">Violett</b>. Einer entscheidet, wer beginnt — der andere wählt die Farbe.</p>
+        <p style="margin-bottom:14px">7×7 Brett, 48 Buchstaben, ein leeres Feld. <b style="color:#e07820">Orange</b> gegen <b style="color:#9b6ab5">Violett</b>. Einer entscheidet, wer beginnt — der andere wählt die Farbe. Danach wählst du die BOT-Stärke: drei Stufen — Nice, Great, Sharp.</p>
         <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Dein Zug.</b></p>
         <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Wähle einen deiner Buchstaben und schiebe ihn beliebig weit — auch über leere Felder — waagrecht oder senkrecht, alles in seiner Reihe oder Spalte rückt mit. Was über den Rand geschoben wird, fällt vom Brett. Statt direkt zu schieben, kannst du mit deinem Buchstaben zuerst auf ein leeres Feld springen und von dort aus schieben.</p>
         <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Pflicht.</b></p>
         <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Bei jedem Zug muss mindestens ein Buchstabe vom Brett fallen — eigene oder gegnerische.</p>
         <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Wörter bilden = Buchstaben gewinnen.</b></p>
-        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Bildest du ein neues Wort mit vier Buchstaben oder mehr, bekommst du genauso viele Buchstaben aufs Brett zurück, wie du gegnerische vom Brett geschoben hast. Kein neues Wort — kein Gewinn.</p>
+        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Bildest du ein Wort mit vier Buchstaben oder mehr, bekommst du genauso viele neue Buchstaben aufs Brett zurück, wie du gegnerische vom Brett geschoben hast.</p>
         <p style="margin-bottom:14px"><b style="color:rgba(255,255,255,.9)">Spielende.</b> Wer auf drei Buchstaben fällt, hat verloren.</p>
         
-        <p style="margin-top:18px;padding:10px 14px;border-radius:10px;background:rgba(224,120,32,.07);border:1px solid rgba(224,120,32,.35);font-size:13px;line-height:1.7"><b style="color:#e07820;font-size:14px">Der SHOVE Bot.</b> Nach dem Spiel zeigt er dir, welche Wörter du nicht gesehen hast. Dein Auge wird schärfer.</p>
+        
       </div>
       <button class="ctrl-btn gold" onclick="simPhase='words';render()" style="margin-top:28px;padding:12px 36px;font-size:12px;letter-spacing:1px">WEITER →</button>
       <div style="margin-top:16px;font-size:9px;color:rgba(255,255,255,.4)">SHOVE™ · © 2026 Marc Conrad</div>
@@ -2777,7 +2802,8 @@ function render(){
         <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Nicht gewertet werden:</b></p>
         <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Eigennamen, Orts- und Ländernamen, Firmennamen, Abkürzungen. BERLIN, NIKE, PKW zählen nicht.</p>
         <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Im Zweifel gilt: Wenn du das Wort in einem deutschen Satz verwenden würdest ohne es als fremd oder als Namen zu empfinden, ist es gültig.</p>
-        <p style="margin-bottom:0;padding:10px 14px;border-radius:10px;background:rgba(224,120,32,.07);border:1px solid rgba(224,120,32,.35);font-size:12px;line-height:1.7"><b style="color:#e07820">Ein Wort zählt nur,</b> wenn sich mindestens ein Buchstabe davon durch den Zug bewegt hat.</p>
+        <p style="margin-bottom:0;font-size:12px;line-height:1.7"><b style="color:#e07820">Ein Wort zählt nur,</b> wenn sich mindestens ein Buchstabe davon durch den Zug bewegt hat.</p>
+        <p style="margin-top:18px;padding:10px 14px;border-radius:10px;background:rgba(224,120,32,.07);border:1px solid rgba(224,120,32,.35);font-size:13px;line-height:1.7"><b style="color:#e07820;font-size:14px">Der SHOVE Bot.</b> Nach dem Spiel zeigt er dir, welche Wörter du nicht gesehen hast. Dein Auge wird schärfer.</p>
       </div>
       <button class="ctrl-btn gold" onclick="simPhase='name-entry';render()" style="margin-top:28px;padding:12px 36px;font-size:12px;letter-spacing:1px">VERSTANDEN ▶</button>
       <div style="margin-top:16px;font-size:9px;color:rgba(255,255,255,.4)">SHOVE™ · © 2026 Marc Conrad</div>
@@ -2806,7 +2832,7 @@ function render(){
       <div style="font-size:9px;letter-spacing:3px;color:rgba(255,255,255,.4);margin-top:90px;margin-bottom:18px">BRETT #${_currentBoardIndex}</div>
       <div style="transform:scale(${sc2});transform-origin:top center;width:${vpW2}px">${bHtml2}</div>
       ${revealDone?`<div style="margin-top:12px;text-align:center">
-        <div style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:6px">KI-STÄRKE</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:6px">BOT-STÄRKE</div>
         <div style="display:flex;gap:10px;justify-content:center;align-items:flex-start">
           ${[["Nice",1,"rgba(96,165,250,.9)","Trainingslager"],["Great",2,"rgba(245,158,11,.9)","Wörter bilden"],["Sharp",3,"rgba(239,68,68,.9)","Die Schlacht"]].map(([lbl,lv,col,desc])=>`<div onclick="kiLevel=${lv};render()" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer"><div style="padding:7px 14px;border-radius:10px;border:1.5px solid ${kiLevel===lv?col:"rgba(255,255,255,.1)"};background:${kiLevel===lv?"rgba(255,255,255,.08)":"rgba(255,255,255,.03)"};font-size:10px;font-weight:${kiLevel===lv?900:600};color:${kiLevel===lv?col:"rgba(255,255,255,.5)"};transition:all .15s">${lbl}</div><div style="font-size:9px;color:${kiLevel===lv?col:"rgba(255,255,255,.4)"};letter-spacing:.5px;font-weight:${kiLevel===lv?700:500};transition:all .15s">${desc}</div></div>`).join("")}
         </div>
@@ -3755,33 +3781,34 @@ fullReset();render();
       ],
     },
     
-    // Trigger NULL_TRADE — Spieler bildet Wort, opfert genau so viele eigene wie er gegnerische killt
+    // Trigger NULL_TRADE — Wort gebildet, gleich viele eigene wie gegnerische gefallen.
+    // Spieler hält seine Zahl, Bot schrumpft um {kill} → das ist ein Gewinn (kein Patt).
     null_trade: {
       nice: [
-        "Bilanz null{name_comma}. Du hast nichts gewonnen, aber auch nichts verloren.",
-        "Ein Wort, aber kein Effekt. Mit ZURÜCK kannst du was anderes versuchen.",
-        "Du hast genauso viel geopfert wie zurückgewonnen. War das geplant?",
-        "Aufwand für null Gewinn{name_comma}. Schau den Zug nochmal an.",
-        "Du tauschst {kill} gegen {kill}. Das bewegt nichts.",
-        "Ein Patt-Zug. Mit ZURÜCK probier eine Richtung mit mehr Wirkung.",
-        "Wort gebildet — aber Bilanz null. Da war mehr drin.",
-        "Du opferst {kill} eigene, killst {kill} meiner. Es bleibt, wie es war.",
+        "Stark{name_comma}: Du behältst deine Zahl, ich verliere {kill}. Genau so gewinnt man.",
+        "Sieht nach Tausch aus, ist aber ein Gewinn — das Wort holt deine {loss} zurück, bei mir bleibt das Minus.",
+        "Du opferst {loss}, bekommst sie durchs Wort zurück — und ich schrumpfe um {kill}. Das bringt dich voran.",
+        "Gut gesehen{name_comma}. Deine Zahl bleibt gleich, meine sinkt um {kill}.",
+        "Wer zuerst auf drei fällt, verliert — du hältst, ich verliere {kill}. Punkt für dich.",
+        "Das Wort rettet deine {loss} Steine, mich kostet der Zug {kill}. Genau richtig.",
+        "Kein Stillstand{name_comma} — du bleibst, ich werde weniger. Das zählt.",
+        "Du gibst {loss} her und holst sie mit dem Wort zurück. Ich schrumpfe, du nicht.",
       ],
       default: [
-        "Bilanz null{name_comma}.",
-        "Ein Wort, kein Effekt.",
-        "Patt-Zug — du tauschst {kill} gegen {kill}.",
-        "Du opferst genauso viele, wie du killst. Aufwand ohne Gewinn.",
-        "Null-Bilanz{name_comma}. War da mehr möglich?",
-        "Wort gebildet, aber netto null.",
+        "Du hältst deine Zahl, ich verliere {kill}. Gewinn{name_comma}.",
+        "Das Wort holt deine {loss} zurück — ich schrumpfe um {kill}.",
+        "Deine Zahl bleibt, meine sinkt um {kill}.",
+        "Kein Tausch — du hältst, ich verliere {kill}.",
+        "Netto null für dich, minus {kill} für mich. Vorteil dir{name_comma}.",
+        "Wort gleicht dein Opfer aus. Ich werde weniger, du nicht.",
       ],
       sharp: [
-        "Eleganter Tanz{name_comma}. Bilanz null, aber stilvoll.",
-        "Du tauschst {kill} gegen {kill}. Wir bewegen uns auf der Stelle.",
-        "Schöne Choreographie. Auch wenn nichts dabei rauskommt.",
-        "Patt. Aber so spielt sich's wenigstens unterhaltsam.",
-        "Bilanz null. Auch eine Aussage.",
-        "Du opferst so viel, wie du killst{name_comma}. Stillstand mit Stil.",
+        "Clever{name_comma}. Du bleibst stehen, ich verliere {kill}.",
+        "Das Wort rettet deine Steine — und kostet mich {kill}. Ärgerlich.",
+        "Sieht aus wie Patt, ist aber dein Punkt: meine Zahl sinkt um {kill}.",
+        "Du hältst, ich blute {kill}. So gewinnt man{name_comma}.",
+        "Schön eingefädelt. Dein Opfer kommt zurück, meins nicht.",
+        "Ich verliere {kill}, du keinen. Das nehme ich dir übel.",
       ],
     },
     
