@@ -742,6 +742,7 @@ let _botMoveCount=0;// counts bot's own moves per game — resets in startGame, 
 let hPhase="idle",hSel=null,hDest=null,hJumpDone=false,kiSelPos=null,pendingNextTurn=null,kiWordHL={},activeWordBoxes=[],wordBoxCells=new Set(),activeWordKeys=new Set();
 let wordBoxKills=0,wordBoxKillColor='#9b6ab5',wordBoxBadgeShown=false;
 let returnedKeys=new Set(),prevBoard=null,postPushBoard=null;
+let hRetPending=[],hRetPlaced=[],hRetSel=null;// v2.0 Selbstsetzen: zu setzende Buchstaben, gesetzte {k,ch}, gewählte Kachel
 let _wordOverlay=null;
 let _birthTimer=null;
 let _returnTimers=[];
@@ -826,6 +827,35 @@ function renderMiniBoard(board, humanPlayer, hiddenWord) {
   return h+'</div>';
 }
 
+let _mlCacheBoard=null,_mlCacheVal=null;// Cache: gleiche Stellung nicht mehrfach durchrechnen (Sofort-Pfad + Analyse)
+function _missedWordList(preBoard, player){
+  if(preBoard===_mlCacheBoard&&_mlCacheVal)return _mlCacheVal;
+  try{
+    const wl=(typeof WORDS!=='undefined')?WORDS:undefined;
+    const bw=findAllWords(preBoard,wl);
+    const meta={};// je Wort: bester Zug (max. gegnerische Kills, dann min. Eigenverlust)
+    for(const p of getPushMoves(preBoard,player)){
+      let nb; try{ nb=applyPush(preBoard,p); }catch(e){ continue; }
+      const _rm=(p.result&&p.result.removed)?p.result.removed:[];
+      const oppK=_rm.filter(r=>r.owner!==player).length;
+      const ownL=_rm.filter(r=>r.owner===player).length;
+      for(const w of getNewWords(bw,findAllWords(nb,wl))){
+        const s=w.word;
+        if(!s||s.length<4)continue;
+        const ex=meta[s];
+        if(!ex||(oppK-ownL)>(ex.k-ex.l)||((oppK-ownL)===(ex.k-ex.l)&&oppK>ex.k)) meta[s]={k:oppK,l:ownL,board:nb};
+      }
+    }
+    const out=Object.keys(meta).sort((a,b)=>(meta[b].k-meta[b].l)-(meta[a].k-meta[a].l)||meta[b].k-meta[a].k||b.length-a.length||a.localeCompare(b));
+    const res={count:out.length, words:out,
+      bestBoard:out.length?meta[out[0]].board:null,
+      bestKills:out.length?meta[out[0]].k:0,
+      bestLoss:out.length?meta[out[0]].l:0};
+    _mlCacheBoard=preBoard;_mlCacheVal=res;
+    return res;
+  }catch(e){ return {count:0, words:[], bestBoard:null, bestKills:0, bestLoss:0}; }
+}
+
 function renderGameover(){
   const c1=cnt(board,P1),c2=cnt(board,P2);
   const myCount=humanPlayer===P1?c1:c2;
@@ -848,9 +878,10 @@ function renderGameover(){
   const _rawMissed=gameStats.missedMoves||[];
   // Deduplicate by moveNum - prefer entry with hiddenWord
   const _missedMap={};
+  const _rich=x=>(x.missedCount||0)*2+(x.hiddenWord?1:0)+(x.kiMove?2:0);
   for(const m of _rawMissed){
-    const key=m.moveNum;
-    if(!_missedMap[key]||m.hiddenWord) _missedMap[key]=m;
+    const key=m.moveNum, ex=_missedMap[key];
+    if(!ex||_rich(m)>_rich(ex)) _missedMap[key]=m;
   }
   const missed=Object.values(_missedMap).sort((a,b)=>a.moveNum-b.moveNum);
   // Consolidate consecutive missed moves with the same hidden word
@@ -883,19 +914,14 @@ function renderGameover(){
       const zugLabel=`Zug ${m.moveNums.join('+')}`;
       return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
         <div style="font-size:9px;color:rgba(255,255,255,.7);margin-bottom:4px">${zugLabel}</div>
-        ${m.hiddenWord?`
-          <div style="margin-top:4px;display:flex;align-items:center;justify-content:center;gap:14px">
-            <div style="flex:0 0 auto;text-align:left">
-              <span style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:1px">HIDDEN WORD</span>
-              <div style="margin-top:4px"><span style="color:#fbbf24;font-size:13px;font-weight:900;letter-spacing:1px">${m.hiddenWord}</span></div>
-              ${(typeof m.kiKills==='number'&&typeof m.humanKills==='number'&&m.kiKills>m.humanKills)?`
-                <div style="margin-top:6px;font-size:9px;color:rgba(255,255,255,.55);letter-spacing:.5px;line-height:1.4">
-                  <span style="color:rgba(255,255,255,.85)">+${m.kiKills-m.humanKills}</span> Buchstaben<br>mehr möglich
-                </div>`:''}
+        ${m.hiddenWord?`<div style="margin-top:4px;display:flex;align-items:flex-start;justify-content:center;gap:14px">
+            <div style="flex:0 0 150px;text-align:left">
+              <span style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:1px">${(m.missedCount>1)?'HIDDEN WORDS':'HIDDEN WORD'}</span>
+              ${(m.missedCount>1)?`<div style="margin-top:4px;font-size:11px;color:rgba(255,255,255,.85)">Du hast <b style="color:#fbbf24">${m.missedCount}</b> Wörter übersehen</div><div style="margin-top:5px;line-height:1.75">${[m.hiddenWord].concat((m.missedWords||[]).filter(w=>w!==m.hiddenWord)).slice(0,4).map((w,i,arr)=>`<span style="display:inline-block;color:#fbbf24;font-size:12px;font-weight:900;letter-spacing:1px;margin-right:8px;white-space:nowrap">${w}${(i<arr.length-1||m.missedCount>4)?',':''}</span>`).join('')}${m.missedCount>4?`<div style="color:#fbbf24;font-size:14px;font-weight:900;letter-spacing:2px;margin-top:1px">…</div>`:''}</div>`:`<div style="margin-top:4px"><span style="color:#fbbf24;font-size:13px;font-weight:900;letter-spacing:1px">${m.hiddenWord}</span></div>`}
+              ${(typeof m.kiKills==='number'&&m.kiKills>0)?`<div style="margin-top:6px;font-size:9px;color:rgba(255,255,255,.55);letter-spacing:.5px;line-height:1.4"><span style="color:rgba(255,255,255,.85)">+${m.kiKills}</span> Buchstabe${m.kiKills!==1?'n':''}<br>zurück</div>`:''}
             </div>
             ${m.hiddenBoard?renderMiniBoard(m.hiddenBoard,humanPlayer,m.hiddenWord):''}
-          </div>`
-        :`<div style="font-size:10px;color:rgba(255,255,255,.3);font-style:italic">kein verstecktes Wort</div>`}
+          </div>`:`<div style="font-size:10px;color:rgba(255,255,255,.3);font-style:italic">kein verstecktes Wort</div>`}
       </div>`;
     }).join("");
     mirrorHtml=`<div style="width:100%;max-width:340px;background:rgba(147,197,253,.04);border:1px solid rgba(147,197,253,.2);border-radius:12px;padding:12px 14px;margin-bottom:12px">
@@ -972,6 +998,7 @@ function fullReset(){
   board={};turn=P1;history=[];comment="";commentCls="";wordHLMap={};
   moveNum=0;_botMoveCount=0;gameEnding=false;_gameWinner=null;_finalQuoteShownThisGame=false;hPhase="idle";hSel=null;hDest=null;hJumpDone=false;kiSelPos=null;
   pendingNextTurn=null;returnedKeys=new Set();prevBoard=null;postPushBoard=null;
+  hRetPending=[];hRetPlaced=[];hRetSel=null;_mlCacheBoard=null;_mlCacheVal=null;
   gameStats={p1elim:0,p1words:0,p1ret:0,p2elim:0,p2words:0,p2ret:0,missedMoves:[]};
   const z=document.getElementById("wordZoneMob");if(z)z.innerHTML="";
   wordBoxKills=0;wordBoxBadgeShown=false;
@@ -1834,6 +1861,7 @@ function startGame(){
   moveNum=0;_botMoveCount=0;gameEnding=false;wordHLMap={};comment="";commentCls="";
   history=[];snapBot=null;snapHuman=null;backAvailable=false;lastCompleted=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;returnedKeys=new Set();prevBoard=null;postPushBoard=null;
   gameStats={p1elim:0,p1words:0,p1ret:0,p2elim:0,p2words:0,p2ret:0,missedMoves:[]};
+  hRetPending=[];hRetPlaced=[];hRetSel=null;_mlCacheBoard=null;_mlCacheVal=null;
   _gameWinner=null;_finalQuoteShownThisGame=false;_botSeq=0;
   simPhase="pushing";
 }
@@ -1890,6 +1918,12 @@ function startHumanTurn(){
 function handleCellClick(x,y){
   if(turn!==humanPlayer||simPhase!=="pushing"||gameEnding)return;
   const k=K(x,y);
+  if(hPhase==="placing"){
+    const _pi=hRetPlaced.findIndex(p=>p.k===k);
+    if(_pi>=0){const p=hRetPlaced[_pi];delete board[k];returnedKeys.delete(k);hRetPlaced.splice(_pi,1);hRetPending.push(p.ch);hRetSel=null;setReturnComment();render();return;}
+    if(!board[k]&&hRetSel!=null&&hRetPending[hRetSel]!=null){const ch=hRetPending[hRetSel];board[k]={owner:humanPlayer,ch};returnedKeys.add(k);hRetPlaced.push({k,ch});hRetPending.splice(hRetSel,1);hRetSel=null;setReturnComment();render();return;}
+    return;
+  }
   if(hPhase==="select"){
     if(board[k]&&board[k].owner===humanPlayer){hSel={x,y};hPhase="selected";backAvailable=false;setHumanComment();render();}
   } else if(hPhase==="selected"){
@@ -1920,6 +1954,21 @@ function setHumanComment(){
     const fc="ABCDEFG"[hSel.x],fr=hSel.y+1,tc="ABCDEFG"[hDest.x],tr=hDest.y+1;
     comment=`<b>${ch}</b> springt ${fc}${fr} nach ${tc}${tr}. Jetzt schieben.`;commentCls="human";
   }
+}
+
+function selectReturnTile(i){ if(hPhase!=="placing")return; hRetSel=(hRetSel===i?null:i); setReturnComment(); render(); }
+function setReturnComment(){
+  const col=humanPlayer===P1?'#e07820':'#9b6ab5', bd=humanPlayer===P1?'#b55e0e':'#7a4a94';
+  const tiles=hRetPending.map((ch,i)=>{
+    const on=(i===hRetSel);
+    return `<span onclick="selectReturnTile(${i})" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin:0 3px;border-radius:6px;font-family:'Libre Franklin',sans-serif;font-weight:800;font-size:16px;color:#fff;background:${col};border:1px solid ${bd};cursor:pointer;vertical-align:middle;${on?'box-shadow:0 0 0 2px #f59e0b':''}">${ch}</span>`;
+  }).join('');
+  let hint;
+  if(hRetPending.length===0) hint='Alles gesetzt \u2014 <b>WEITER</b> schlie\u00dft den Zug ab, <b>ZUR\u00dcCK</b> nimmt einen Bst. wieder auf.';
+  else if(hRetSel!=null) hint=`Tippe ein freies Feld f\u00fcr <b>${hRetPending[hRetSel]}</b>.`;
+  else hint='Tippe einen Bst., dann ein freies Feld.';
+  comment=(tiles?tiles+'<br>':'')+hint;
+  commentCls="human";
 }
 
 function humanPushExact(idx){
@@ -2001,9 +2050,10 @@ function humanDoPush(push){
             const kl=kw.length>0?Math.max(...kw.map(w=>w.word.length)):0;
             const hl=afterW.length>0?Math.max(...afterW.map(w=>w.word.length)):0;
             if(afterW.length===0){
-              const _hw=_snapHiddenWord||(kw.length>0?kw.reduce((a,b)=>b.word.length>a.word.length?b:a,kw[0]).word:null);
-              const _hb=_snapHiddenBoard||(kw.length>0?knb:null);
-              gameStats.missedMoves.push({moveNum,kiWords:kw.map(w=>w.word),kiLongest:kl,kiKills:kk,
+              const _ml=_missedWordList(_prevBoardSnap,humanPlayer);
+              const _hw=(_ml.count>0?_ml.words[0]:(_snapHiddenWord||(kw.length>0?kw.reduce((a,b)=>b.word.length>a.word.length?b:a,kw[0]).word:null)));
+              const _hb=(_ml.count>0?_ml.bestBoard:(_snapHiddenBoard||(kw.length>0?knb:null)));
+              gameStats.missedMoves.push({moveNum,kiWords:kw.map(w=>w.word),kiLongest:kl,kiKills:(_ml.count>0?_ml.bestKills:kk),missedWords:_ml.words,missedCount:_ml.count,
                 humanWords:afterW.map(w=>w.word),humanKills:kills,hiddenWord:_hw,hiddenBoard:_hb,
                 kiMove:{x:ko.push.x,y:ko.push.y,dir:ko.push.dir.n,destX:ko.push.destX,destY:ko.push.destY},
                 jumped:ko.jumped||false,jumpFrom:ko.jumped?{x:ko.jump.fromX,y:ko.jump.fromY}:null,
@@ -2058,9 +2108,10 @@ function humanDoPush(push){
             const kl=kw.length>0?Math.max(...kw.map(w=>w.word.length)):0;
             const hl=afterW.length>0?Math.max(...afterW.map(w=>w.word.length)):0;
             if(afterW.length===0){
-              const _hw=_snapHiddenWord||(kw.length>0?kw.reduce((a,b)=>b.word.length>a.word.length?b:a,kw[0]).word:null);
-              const _hb=_snapHiddenBoard||(kw.length>0?knb:null);
-              gameStats.missedMoves.push({moveNum,kiWords:kw.map(w=>w.word),kiLongest:kl,kiKills:kk,
+              const _ml=_missedWordList(_prevBoardSnap,humanPlayer);
+              const _hw=(_ml.count>0?_ml.words[0]:(_snapHiddenWord||(kw.length>0?kw.reduce((a,b)=>b.word.length>a.word.length?b:a,kw[0]).word:null)));
+              const _hb=(_ml.count>0?_ml.bestBoard:(_snapHiddenBoard||(kw.length>0?knb:null)));
+              gameStats.missedMoves.push({moveNum,kiWords:kw.map(w=>w.word),kiLongest:kl,kiKills:(_ml.count>0?_ml.bestKills:kk),missedWords:_ml.words,missedCount:_ml.count,
                 humanWords:afterW.map(w=>w.word),humanKills:kills,hiddenWord:_hw,hiddenBoard:_hb,
                 kiMove:{x:ko.push.x,y:ko.push.y,dir:ko.push.dir.n,destX:ko.push.destX,destY:ko.push.destY},
                 jumped:ko.jumped||false,jumpFrom:ko.jumped?{x:ko.jump.fromX,y:ko.jump.fromY}:null,
@@ -2105,7 +2156,7 @@ function humanDoPush(push){
       // Bilanz-Trigger (Bad-Trade oder Null-Trade) haben Vorrang vor Wort-zerstört.
       // Wenn der Spieler ein Wort gebildet hat aber netto verloren oder null gemacht hat,
       // ist das die wichtigere Info als die Bot-Reaktion auf sein eigenes zerstörtes Wort.
-      const _isBalanceIssue = newWords.length > 0 && _playerLoss >= kills && kills > 0;
+      const _isBalanceIssue = newWords.length > 0 && _playerLoss > kills && kills > 0;
       
       // Beim Spieler-Push: erst alte Sprechblase (z.B. von ZURÜCK) ausblenden,
       // damit sie nicht das gleich kommende Wort überlagert.
@@ -2190,33 +2241,20 @@ function humanDoPush(push){
         commentCls="human";
         wordHLMap={};// keep word box during return
         render();
-        // Forbid cells in the scored word's row/col to prevent immediate recreation
-        const _forbiddenH=new Set();
-        if(activeWordBoxes.length){
-          const pad=12,cs=CELL+GAP;
-          for(const b of activeWordBoxes){
-            const minX=Math.round((b.left-pad)/cs),minY=Math.round((b.top-pad)/cs);
-            const cols=Math.round((b.width+GAP)/cs),rows=Math.round((b.height+GAP)/cs);
-            // Row word: forbid empty cells in that row
-            // Col word: forbid empty cells in that col
-            for(let y=0;y<G;y++)for(let x=0;x<G;x++){
-              const k=K(x,y);if(board[k])continue;
-              if(rows===1&&y===minY)_forbiddenH.add(k);// same row
-              if(cols===1&&x===minX)_forbiddenH.add(k);// same col
-            }
-          }
-        }
-        const _humanSelfLoss2 = push.result.removed.filter(x => x.owner === humanPlayer).length;
-        const ret=returnStonesAnimated(humanPlayer,kills,(n)=>{
-          gameStats[humanPlayer===P1?'p1ret':'p2ret']+=n||ret;
-          // Kommentar bleibt stehen (Phase 4); WEITER wird aktiv durch pendingNextTurn
-          commentCls="human";
-          activeWordBoxes=[];
-          backAvailable=true;lastCompleted="human";
+        // v2.0: Mensch setzt seine zur\u00fcckgewonnenen Buchstaben selbst — Weg 2: exakt die eroberten
+        const _capturedLetters = push.result.removed.filter(x => x.owner !== humanPlayer).map(x => x.ch);
+        if(_capturedLetters.length>0){
+          // Wort-Highlight in der Setz-Phase entfernen (verwirrt beim Platzieren)
+          wordHLMap={};activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;
+          {const _wz=document.getElementById("wordZoneMob");if(_wz)_wz.innerHTML="";}
+          hRetPending=_capturedLetters.slice();hRetPlaced=[];hRetSel=null;
+          hPhase="placing";backAvailable=true;
+          setReturnComment();render();
+        } else {
+          commentCls="human";activeWordBoxes=[];backAvailable=true;lastCompleted="human";
           pendingNextTurn=()=>{turn=aiPlayer;if(!checkGameEnd())setTimeout(()=>humanAITurn(),600);};
           render();
-        },_forbiddenH);
-        if(ret===0){backAvailable=true;lastCompleted="human";pendingNextTurn=()=>{turn=aiPlayer;if(!checkGameEnd())setTimeout(()=>humanAITurn(),600);};render();}
+        }
       });
     } else {
       wordBoxKills=0;wordBoxBadgeShown=false;
@@ -2226,11 +2264,12 @@ function humanDoPush(push){
         : `${kills} Bot-Bst. eliminiert`;
       comment=`Zug ${moveNum} — <b>${pieceCh}</b> ${fc}${fr}→${tc}${tr} · ${_elimStrNw}`;
       commentCls="";wordHLMap={};
-      // Track missed word opportunity
-      const _showWord=_snapHiddenWord||(_humanPushWords?_humanPushWords.word:null);
-      const _showBoard=_snapHiddenBoard||(_humanPushWords?_humanPushWords.board:null);
+      // Track missed word opportunity — Wörter aus der Stellung VOR dem Zug (korrekt + Anzahl)
+      const _mlNw=_missedWordList(_prevBoardSnap,humanPlayer);
+      const _showWord=(_mlNw.count>0?_mlNw.words[0]:(_snapHiddenWord||(_humanPushWords?_humanPushWords.word:null)));
+      const _showBoard=(_mlNw.count>0?_mlNw.bestBoard:(_snapHiddenBoard||(_humanPushWords?_humanPushWords.board:null)));
       if(_showWord){
-        gameStats.missedMoves.push({moveNum,kiWords:[],kiLongest:0,kiKills:0,
+        gameStats.missedMoves.push({moveNum,kiWords:[],kiLongest:0,kiKills:(_mlNw.count>0?_mlNw.bestKills:0),missedWords:_mlNw.words,missedCount:_mlNw.count,
           humanWords:[],humanKills:kills,hiddenWord:_showWord,
           hiddenBoard:_showBoard,
           jumped:false,kiMove:null});
@@ -2748,7 +2787,7 @@ function render(){
         <button class="ctrl-btn" onclick="simPhase='rules';render()" style="padding:13px;font-size:11px;letter-spacing:2px;width:100%">📖 SO GEHT'S</button>
       </div>
       <div style="margin-top:28px;font-size:9px;color:rgba(255,255,255,.25);letter-spacing:2px;line-height:1.8;text-align:center">SHOVE™ · © 2026 Marc Conrad<br>nach OVERBOARD von Alex Randolph</div>
-      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v1.9</div>
+      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.0</div>
     </div>`;
     return;
   }
@@ -2775,13 +2814,13 @@ function render(){
     app.innerHTML=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:48px 8px 100px;animation:slideIn .4s ease-out">
       <div class="title-sm" style="margin-bottom:20px">SHOVE – So geht's</div>
       <div style="max-width:360px;font-size:13px;line-height:1.9;color:rgba(255,255,255,.75)">
-        <p style="margin-bottom:14px">7×7 Brett, 48 Buchstaben, ein leeres Feld. <b style="color:#e07820">Orange</b> gegen <b style="color:#9b6ab5">Violett</b>. Einer entscheidet, wer beginnt — der andere wählt die Farbe. Danach wählst du die BOT-Stärke: drei Stufen — Nice, Great, Sharp.</p>
+        <p style="margin-bottom:14px">7×7 Brett, 48 Buchstaben, ein leeres Feld. <b style="color:#e07820">Orange</b> gegen <b style="color:#9b6ab5">Violett</b>. Du wählst die BOT-Stärke — drei Stufen: Nice, Great, Sharp — und entscheidest, wer beginnt. Der andere wählt die Farbe.</p>
         <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Dein Zug.</b></p>
-        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Wähle einen deiner Buchstaben und schiebe ihn beliebig weit — auch über leere Felder — waagrecht oder senkrecht, alles in seiner Reihe oder Spalte rückt mit. Was über den Rand geschoben wird, fällt vom Brett. Statt direkt zu schieben, kannst du mit deinem Buchstaben zuerst auf ein leeres Feld springen und von dort aus schieben.</p>
+        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Wähle einen deiner Buchstaben und schiebe ihn beliebig weit — auch über leere Felder — waagerecht oder senkrecht, alles, was im Weg steht, rückt mit. Was über den Rand geschoben wird, fällt vom Brett. Statt direkt zu schieben, kannst du mit deinem Buchstaben zuerst auf ein leeres Feld springen und von dort aus schieben.</p>
         <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Pflicht.</b></p>
-        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Bei jedem Zug muss mindestens ein Buchstabe vom Brett fallen — eigene oder gegnerische.</p>
+        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Bei jedem Zug muss mindestens ein Buchstabe vom Brett fallen — ein eigener oder ein gegnerischer.</p>
         <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Wörter bilden = Buchstaben gewinnen.</b></p>
-        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Bildest du ein Wort mit vier Buchstaben oder mehr, bekommst du genauso viele neue Buchstaben aufs Brett zurück, wie du gegnerische vom Brett geschoben hast.</p>
+        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Bildest du ein Wort mit vier Buchstaben oder mehr, kommen die gegnerischen Buchstaben, die du vom Brett geschoben hast, als deine zurück. Du setzt sie, wohin du willst. Schiebst du nur eigene herunter oder bildest du kein Wort, bekommst du nichts zurück.</p>
         <p style="margin-bottom:14px"><b style="color:rgba(255,255,255,.9)">Spielende.</b> Wer auf drei Buchstaben fällt, hat verloren.</p>
         
         
@@ -2796,12 +2835,12 @@ function render(){
     app.innerHTML=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:48px 8px 100px;animation:slideIn .4s ease-out">
       <div class="title-sm" style="margin-bottom:20px">Welche Wörter zählen?</div>
       <div style="max-width:360px;font-size:13px;line-height:1.9;color:rgba(255,255,255,.75)">
-        <p style="margin-bottom:14px">Gültig sind <b style="color:rgba(255,255,255,.9)">deutsche Wörter</b> die du im Alltag kennst — Substantive, Verben, Adjektive und ihre geläufigen Formen.</p>
-        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">LESEN · LIEST · LAS · GELESEN — all das zählt.</p>
-        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Fremdwörter die ins Deutsche übergegangen sind und im Duden stehen — wie PIZZA oder DISCO — zählen.</p>
+        <p style="margin-bottom:14px">Gültig sind <b style="color:rgba(255,255,255,.9)">deutsche Wörter</b>, die du im Alltag kennst — Substantive, Verben, Adjektive und ihre geläufigen Formen.</p>
+        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">LESEN · LIEST · GELESEN — all das zählt.</p>
+        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(224,120,32,.4)">Fremdwörter, die ins Deutsche übergegangen sind und im Duden stehen — wie PIZZA oder DISCO — zählen.</p>
         <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Nicht gewertet werden:</b></p>
         <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Eigennamen, Orts- und Ländernamen, Firmennamen, Abkürzungen. BERLIN, NIKE, PKW zählen nicht.</p>
-        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Im Zweifel gilt: Wenn du das Wort in einem deutschen Satz verwenden würdest ohne es als fremd oder als Namen zu empfinden, ist es gültig.</p>
+        <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Im Zweifel gilt: Wenn du das Wort in einem deutschen Satz verwenden würdest, ohne es als fremd oder als Namen zu empfinden, ist es gültig.</p>
         <p style="margin-bottom:0;font-size:12px;line-height:1.7"><b style="color:#e07820">Ein Wort zählt nur,</b> wenn sich mindestens ein Buchstabe davon durch den Zug bewegt hat.</p>
         <p style="margin-top:18px;padding:10px 14px;border-radius:10px;background:rgba(224,120,32,.07);border:1px solid rgba(224,120,32,.35);font-size:13px;line-height:1.7"><b style="color:#e07820;font-size:14px">Der SHOVE Bot.</b> Nach dem Spiel zeigt er dir, welche Wörter du nicht gesehen hast. Dein Auge wird schärfer.</p>
       </div>
@@ -3049,7 +3088,7 @@ function render(){
   _btnBack.style.padding=_backOn?"":"0";
   _btnBack.style.border=_backOn?"":"none";
   _btnBack.style.overflow="hidden";
-  const _canPlay=pendingNextTurn&&!_stonesReturning;
+  const _canPlay=(pendingNextTurn&&!_stonesReturning)||(hPhase==="placing"&&hRetPending.length===0);
   const _bp=mc.querySelector('#btnPlay');
   // Set background BEFORE opacity changes, atomically in same frame
   // to avoid flicker where border shows before fill renders
@@ -3076,6 +3115,15 @@ function render(){
 
 function onPlay(){
   if(_stonesReturning)return;
+  if(hPhase==="placing"){
+    if(hRetPending.length>0){setReturnComment();render();return;}
+    hPhase="idle";hRetSel=null;
+    gameStats[humanPlayer===P1?'p1ret':'p2ret']+=hRetPlaced.length;
+    for(const p of hRetPlaced)returnedKeys.delete(p.k);hRetPlaced=[];
+    activeWordBoxes=[];wordHLMap={};lastCompleted="human";
+    turn=aiPlayer;if(!checkGameEnd())setTimeout(()=>humanAITurn(),600);
+    render();return;
+  }
   if(simPhase==="ki-decided"){
     startGame();render();
     if(turn===humanPlayer)setTimeout(()=>startHumanTurn(),1000);
@@ -3095,6 +3143,12 @@ let _onBackLock=false;
 function onBack(){
   if(_onBackLock)return;
   _onBackLock=true;setTimeout(()=>{_onBackLock=false;},600);
+  if(hPhase==="placing"){
+    if(hRetPlaced.length>0){const last=hRetPlaced.pop();delete board[last.k];returnedKeys.delete(last.k);hRetPending.push(last.ch);hRetSel=null;setReturnComment();render();return;}
+    // nichts (mehr) gesetzt → ganzen Zug verwerfen, damit man einen anderen Zug überlegen kann
+    hRetPending=[];hRetSel=null;lastCompleted="human";
+    // kein return: unten folgt die normale Wiederherstellung auf snapHuman (Zuganfang)
+  }
   // ZURÜCK invalidiert alle laufenden Timeouts aus dem aktuellen Bot-Zug
   // (z.B. 2.5s-Pause vor startHumanTurn → würde sonst kurz "Dein Zug." anzeigen)
   _botSeq++;
