@@ -282,7 +282,7 @@ function kiScore(myCount,oppCount,eliminated,stonesBack,longestWord,oppAfter,isJ
   // Sharp: word-heavy, elim secondary → always maximizes language potential
   const elimW=  kiLevel===1?12 : kiLevel===2?10 : 10;
   const backW=  kiLevel===1?8  : kiLevel===2?12 : 18;
-  const wrdW4=  kiLevel===1?40 : kiLevel===2?30 : 80;// flat bonus: word exists (4+) — raised for Sharp to ensure word moves always preferred
+  const wrdW4=  kiLevel===1?40 : kiLevel===2?30 : 44;// flat bonus: word exists (4+) — raised for Sharp to ensure word moves always preferred
   const endW3=  kiLevel===1?150: kiLevel===2?300: 400;
   const endW6=  kiLevel===1?20 : kiLevel===2?60 : 80;
   const endW10= kiLevel===1?5  : kiLevel===2?20 : 30;
@@ -332,6 +332,7 @@ function oppMaxKills(nb,opp){
 
 function evalMoves(b,player,bSet,maxJumpTargets){
   const opp=player===P1?P2:P1;
+  const oppBestNet=(bb)=>{let m=0;for(const q of getPushMoves(bb,opp)){let a=0,d=0;for(const r of q.result.removed){if(r.owner===opp)d++;else a++;}const n=a-d;if(n>m)m=n;}return m;};
   const myCount=cnt(b,player),oppCount=cnt(b,opp);
   const endW3=kiLevel===1?150:kiLevel===2?300:400;
   const results=[];
@@ -344,7 +345,8 @@ function evalMoves(b,player,bSet,maxJumpTargets){
     const ownLost=p.result.removed.filter(x=>x.owner===player).length;
     let sc=kiScore(myCount,oppCount,el,nw.length>0?el:0,lw,cnt(nb,opp),false);
     if(el===0&&ownLost===0)sc-=200;
-    if(ownLost>0){const netRet=(nw.length>0?el:0)-ownLost;sc+=netRet*(kiLevel===3?18:kiLevel===2?12:8);}
+    {const swing=el+(nw.length>0?el:0)-ownLost;sc+=swing*(kiLevel===3?16:kiLevel===2?13:6);}
+    if(kiLevel===2)sc-=oppBestNet(nb)*9;
     // Winning sacrifice: if opponent drops to <=3, override penalties with massive bonus
     if(cnt(nb,opp)<=3)sc=Math.max(sc,endW3+el*20);
     if(kiLevel>1){const dl=oppDangerScore(nb,opp,bSet);const dw=kiLevel===3?18:7;const rawD=dl>=4?dw:0;const comp=el*(kiLevel===3?9:4);sc-=Math.max(0,rawD-comp);}
@@ -365,7 +367,8 @@ function evalMoves(b,player,bSet,maxJumpTargets){
         const ownLost2=pf.result.removed.filter(x=>x.owner===player).length;
         let sc2=kiScore(myCount,oppCount,el2,nw2.length>0?el2:0,lw2,cnt(nb2,opp),true);
         if(el2===0&&ownLost2===0)sc2-=200;
-        if(ownLost2>0){const netRet2=(nw2.length>0?el2:0)-ownLost2;sc2+=netRet2*(kiLevel===3?18:kiLevel===2?12:8);}
+        {const swing2=el2+(nw2.length>0?el2:0)-ownLost2;sc2+=swing2*(kiLevel===3?16:kiLevel===2?13:6);}
+        if(kiLevel===2)sc2-=oppBestNet(nb2)*9;
         // Winning sacrifice: if opponent drops to <=3, override penalties with massive bonus
         if(cnt(nb2,opp)<=3)sc2=Math.max(sc2,endW3+el2*20);
         if(kiLevel>1){const dl2=oppDangerScore(nb2,opp,bSet);const dw2=kiLevel===3?18:7;const rawD2=dl2>=4?dw2:0;const comp2=el2*(kiLevel===3?9:4);sc2-=Math.max(0,rawD2-comp2);}
@@ -386,7 +389,7 @@ function kiSelfDefense(b,player,opp,bSet,humanKills){
   const killW=bothLow?40:30;
   const wordW=bothLow?10:15;
   const retW=35;
-  const expW=bothLow?20:18;
+  const expW=kiLevel===3?killW:(bothLow?20:18);// Sharp: Exposure kostet so viel wie ein Kill bringt
   const hk=humanKills||0;
   const scored=allM.map(m=>{
     const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
@@ -405,6 +408,38 @@ function kiSelfDefense(b,player,opp,bSet,humanKills){
   return scored[0].m.move;
 }
 
+
+// ═══ ENDSPIEL-SUCHE (S5): Material-Minimax, 4 Halbzuege, Alpha-Beta ═══
+// Nur wenn wenige Steine auf dem Brett (kleine Baeume). Zeitbudget haelt den Spielfluss.
+function egMoveList(bb,who){
+  const list=[];
+  for(const p of getPushMoves(bb,who)){
+    let a=0,d=0;for(const r of p.result.removed){if(r.owner===who)d++;else a++;}
+    list.push({p,net:a-d});
+  }
+  list.sort((x,y)=>y.net-x.net);
+  return list;
+}
+function egSearch(bb,who,me,depth,alpha,beta,deadline){
+  const myC=cnt(bb,me),opC=cnt(bb,me===P1?P2:P1);
+  if(opC<=3&&myC<=3)return who===me?900-depth:-900+depth;
+  if(opC<=3)return 1000-depth;
+  if(myC<=3)return -1000+depth;
+  if(depth===0)return myC-opC;
+  if(Date.now()>deadline)return myC-opC;
+  const moves=egMoveList(bb,who).slice(0,10);
+  if(!moves.length)return myC-opC;
+  const isMax=(who===me);
+  let best=isMax?-Infinity:Infinity;
+  for(const m of moves){
+    const nb=applyPush(bb,m.p);
+    const v=egSearch(nb,who===P1?P2:P1,me,depth-1,alpha,beta,deadline);
+    if(isMax){if(v>best)best=v;if(best>alpha)alpha=best;}
+    else{if(v<best)best=v;if(best<beta)beta=best;}
+    if(alpha>=beta)break;
+  }
+  return best;
+}
 function kiPickBestMove(b,player,sac,humanKills){
   const opp=player===P1?P2:P1;
   const beforeWords=findAllWords(b);
@@ -510,6 +545,33 @@ function kiPickBestMove(b,player,sac,humanKills){
 
   // Great: prefer word moves, pick best by score
   if(kiLevel===2){
+    // G1: Endspiel-Suche light — 2 Halbzuege, nur 65% der Zuege (Stufentrennung zu Sharp bleibt)
+    const _gMy=cnt(b,player),_gOpp=cnt(b,opp);
+    if(_gMy+_gOpp<=20 && Math.random()<0.65){
+      const _gMoves=evalMoves(b,player,bSet,20);
+      if(_gMoves.length){
+        _gMoves.sort((a,c)=>c.score-a.score);
+        const _gWord=_gMoves.filter(m=>m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=1);
+        const _gNon=_gMoves.filter(m=>!m.move.word);
+        const _gPool=(_gWord.length?_gWord.concat(_gNon.slice(0,6)):_gMoves).slice(0,14);
+        const _gDead=Date.now()+600;
+        let _gBest=null,_gVal=-Infinity;
+        for(const cand of _gPool){
+          const _gEl=cand.move.result.removed.filter(x=>x.owner!==player).length;
+          const _gRet=cand.move.word?_gEl:0;
+          let _gAfter=cand.board;
+          if(_gRet>0){
+            _gAfter={};for(const kk in cand.board)_gAfter[kk]=cand.board[kk];
+            let placed=0;
+            for(let y=0;y<G&&placed<_gRet;y++)for(let x=0;x<G&&placed<_gRet;x++){const kk=K(x,y);if(!_gAfter[kk]){_gAfter[kk]={owner:player,ch:'E'};placed++;}}
+          }
+          const v=egSearch(_gAfter,opp,player,1,-Infinity,Infinity,_gDead)+(cand.move.word?2:0);
+          if(v>_gVal){_gVal=v;_gBest=cand.move;}
+          if(Date.now()>_gDead)break;
+        }
+        if(_gBest)return _gBest;
+      }
+    }
     // Self-defense kicks in at <=14 stones — mild: Great verteidigt weniger zuverlaessig (0.55)
     if(cnt(b,player)<=14 && Math.random()<0.55){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const moves=evalMoves(b,player,bSet,20);
@@ -520,16 +582,45 @@ function kiPickBestMove(b,player,sac,humanKills){
       const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
       return kills >= 1;
     });
-    const pool=wordMoves.length>0?wordMoves:moves;
+    const highKillG=moves.filter(m=>!m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=2);
+    const pool=wordMoves.length>0?wordMoves.concat(highKillG):moves;
     pool.sort((a,c)=>c.score-a.score);
     const top=pool.slice(0,Math.min(3,pool.length));
     return top[Math.floor(Math.random()*top.length)].move;
   }
 
-  // Sharp self-defense: <=14 stones, OR relatively close to opponent (+2), OR forced after human sacrifice
+  // ═══ S5: Endspiel-Suche hat Vorrang vor SD und Endgame-Override ═══
   const myCount2=cnt(b,player);
   const oppCount2b=cnt(b,opp);
-  if(myCount2<=14 || myCount2<=oppCount2b+2 || sac){
+  if(myCount2+oppCount2b<=20){
+    const _egMoves=evalMoves(b,player,bSet,20);
+    if(_egMoves.length){
+      _egMoves.sort((a,c)=>c.score-a.score);
+      const _egWord=_egMoves.filter(m=>m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=1);
+      const _egNon=_egMoves.filter(m=>!m.move.word);
+      const _egPool=(_egWord.length?_egWord.concat(_egNon.slice(0,8)):_egMoves).slice(0,18);
+      const _deadline=Date.now()+900;
+      let bestMoveEG=null,bestValEG=-Infinity;
+      for(const cand of _egPool){
+        const _elE=cand.move.result.removed.filter(x=>x.owner!==player).length;
+        const _retE=cand.move.word?_elE:0;
+        let bAfter=cand.board;
+        if(_retE>0){
+          bAfter={};for(const kk in cand.board)bAfter[kk]=cand.board[kk];
+          let placed=0;
+          for(let y=0;y<G&&placed<_retE;y++)for(let x=0;x<G&&placed<_retE;x++){const kk=K(x,y);if(!bAfter[kk]){bAfter[kk]={owner:player,ch:'E'};placed++;}}
+        }
+        const v=egSearch(bAfter,opp,player,3,-Infinity,Infinity,_deadline)+(cand.move.word?2:0);
+        if(v>bestValEG){bestValEG=v;bestMoveEG=cand.move;}
+        if(Date.now()>_deadline)break;
+      }
+      if(bestMoveEG)return bestMoveEG;
+    }
+  }
+  // S6 Renn-Modus: klar im Rückstand → Material vor Wort, SD pausiert (Durchsatz zählt)
+  const _racing=myCount2<=oppCount2b-2;
+  // Sharp self-defense: <=14 stones, OR relatively close to opponent (+2), OR forced after human sacrifice
+  if(!_racing && (myCount2<=14 || myCount2<=oppCount2b+2 || sac)){
     const sd=kiSelfDefense(b,player,opp,bSet,humanKills);
     if(sd)return sd;
   }
@@ -562,37 +653,23 @@ function kiPickBestMove(b,player,sac,humanKills){
     return kills >= 1;
   });
   // H1: keep top non-word moves with >=2 kills in the pool so Sharp can pick trades over weak words
-  const highKillCands=botMoves.filter(m=>!m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=2);
-  const candPool=wordCands.length>0?wordCands.concat(highKillCands.slice(0,4)):botMoves;
-  const candidates=candPool.slice(0,Math.min(12,candPool.length));
+  const nonWordCands=botMoves.filter(m=>!m.move.word);
+  const candPool=_racing?botMoves:(wordCands.length>0?wordCands.concat(nonWordCands.slice(0,8)):botMoves);
+  const candidates=candPool.slice(0,Math.min(18,candPool.length));
 
   let bestMove=null,bestNet=-999999;
   for(const cand of candidates){
     const boardAfterBot=cand.board;
-    const bSet2=new Set(findAllWords(boardAfterBot).map(wordKey));
-    // Ply 2: opponent 8 responses
-    const oppMoves=evalMoves(boardAfterBot,opp,bSet2,8);
-    if(!oppMoves.length){
-      if(cand.score>bestNet){bestNet=cand.score;bestMove=cand.move;}
-      continue;
+    // Beste Material-Antwort des Gegners exakt bepreisen (deckt Eliminierer wie Wortspieler)
+    let oppMat=0;
+    for(const q of getPushMoves(boardAfterBot,opp)){
+      let a=0,d=0;for(const r of q.result.removed){if(r.owner===opp)d++;else a++;}
+      const n=a-d;if(n>oppMat)oppMat=n;
     }
-    oppMoves.sort((a,c)=>c.score-a.score);
-    const oppCandidates=oppMoves.slice(0,Math.min(8,oppMoves.length));
-    // Opponent picks best considering my ply-3 counter
-    let oppWorstForMe=-999999;
-    for(const oppCand of oppCandidates){
-      const boardAfterOpp=oppCand.board;
-      const bSet3=new Set(findAllWords(boardAfterOpp).map(wordKey));
-      // Ply 3: my best counter (top 6)
-      const myCounters=evalMoves(boardAfterOpp,player,bSet3,6);
-      const myCounterBest=myCounters.length>0
-        ?myCounters.reduce((a,c)=>c.score>a.score?c:a,myCounters[0]).score:0;
-      // Opponent's net: their gain minus my counter
-      const oppNet=oppCand.score - myCounterBest*0.6;
-      if(oppNet>oppWorstForMe)oppWorstForMe=oppNet;
-    }
-    // My net: my gain minus opponent's best net response
-    const net=cand.score - oppWorstForMe*0.75;
+    const _el=cand.move.result.removed.filter(x=>x.owner!==player).length;
+    const _ol=cand.move.result.removed.filter(x=>x.owner===player).length;
+    const _gain=_el+(cand.move.word?_el:0)-_ol;
+    const net=(_gain-oppMat)*30+(cand.move.word?(_racing?15:80):0)+cand.score*0.1;
     if(net>bestNet){bestNet=net;bestMove=cand.move;}
   }
   return bestMove||candidates[0].move;
@@ -1147,11 +1224,14 @@ function getNewWords(before,after){
 
 // ═══ STONE RETURN ═══
 
-function findSmartReturnSlots(player, count, empty) {
+function findSmartReturnSlots(player, count, empty, chars) {
   const ALPHA = "ABCDEFGHIKLMNOPRSTUW";
   const ENDGAME_LETTERS = "EASTRNL";
   const slots = [];
   if(empty.length===0||count===0) return slots;
+  // v2.1: Rueckkehrer tragen exakt die eliminierten Buchstaben (brettspiel-identisch). chars = Multiset.
+  const _pool=(chars&&chars.length)?chars.slice():null;
+  if(_pool)for(let i=_pool.length-1;i>0;i--){const j=0|Math.random()*(i+1);[_pool[i],_pool[j]]=[_pool[j],_pool[i]];}
 
   // The opponent is who we want to enable word-building for
   const opponent = player===P1?P2:P1;
@@ -1176,7 +1256,7 @@ function findSmartReturnSlots(player, count, empty) {
     if(adjCells.length>0) searchCells=adjCells;
   }
 
-  const letters = endgame ? ENDGAME_LETTERS.split("") : ALPHA.split("");
+  const letters = _pool ? [...new Set(_pool)] : (endgame ? ENDGAME_LETTERS.split("") : ALPHA.split(""));
   for(let i=searchCells.length-1;i>0;i--){const j=0|Math.random()*(i+1);[searchCells[i],searchCells[j]]=[searchCells[j],searchCells[i]];}
   for(let i=letters.length-1;i>0;i--){const j=0|Math.random()*(i+1);[letters[i],letters[j]]=[letters[j],letters[i]];}
 
@@ -1232,6 +1312,7 @@ function findSmartReturnSlots(player, count, empty) {
   const used=new Set();
   if(keySlot){
     slots.push(keySlot);used.add(keySlot.k);
+    if(_pool){const _pi=_pool.indexOf(keySlot.ch);if(_pi>=0)_pool.splice(_pi,1);}
     _hiddenWord=keySlot.word||null;
     // Save the board AFTER the push where word appears
     _hiddenBoard=keySlot.wordBoard||null;
@@ -1255,11 +1336,11 @@ function findSmartReturnSlots(player, count, empty) {
   const _scored=remaining.map(e=>({e,risk:_exposure(e.k)}));
   _scored.sort((a,b)=>a.risk-b.risk);
   for(const {e} of _scored.slice(0,count-slots.length)){
-    slots.push({k:e.k,x:e.x,y:e.y,ch:ALPHA[Math.floor(Math.random()*ALPHA.length)]});
+    slots.push({k:e.k,x:e.x,y:e.y,ch:_pool?(_pool.shift()||ALPHA[Math.floor(Math.random()*ALPHA.length)]):ALPHA[Math.floor(Math.random()*ALPHA.length)]});
   }
   return slots;
 }
-function returnStonesAnimated(player,count,onDone,forbiddenKeys){
+function returnStonesAnimated(player,count,onDone,forbiddenKeys,chars){
   _stonesReturning=true;
   const forbidden=new Set(forbiddenKeys||[]);
   // Spielregel: Es kommen GENAU SO VIELE Steine zurück wie gegnerische Steine eliminiert wurden.
@@ -1280,13 +1361,13 @@ function returnStonesAnimated(player,count,onDone,forbiddenKeys){
   const actual=count;
   if(actual===0){_stonesReturning=false;if(onDone)setTimeout(()=>onDone(0),400);return 0;}
   _returnTimers.forEach(t=>clearTimeout(t));_returnTimers=[];
-  const _smartSlots=findSmartReturnSlots(player,actual,empty);
+  const _smartSlots=findSmartReturnSlots(player,actual,empty,chars);
   // Shuffle so key stone position is unpredictable
   for(let i=_smartSlots.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[_smartSlots[i],_smartSlots[j]]=[_smartSlots[j],_smartSlots[i]];}
   for(let i=0;i<actual;i++){
     const _slot=_smartSlots[i]||empty[i];
     const{k,x,y}=_slot;
-    const _slotCh=_slot.ch;
+    const _slotCh=_slot.ch||(chars&&chars[i])||"E";
     _returnTimers.push(setTimeout(()=>{
       if(!_stonesReturning)return;
       board[k]={owner:player,ch:_slotCh};
@@ -1498,7 +1579,7 @@ function kiScore(myCount,oppCount,eliminated,stonesBack,longestWord,oppAfter,isJ
   // Sharp: word-heavy, elim secondary → always maximizes language potential
   const elimW=  kiLevel===1?12 : kiLevel===2?10 : 10;
   const backW=  kiLevel===1?8  : kiLevel===2?12 : 18;
-  const wrdW4=  kiLevel===1?40 : kiLevel===2?30 : 80;// flat bonus: word exists (4+) — raised for Sharp to ensure word moves always preferred
+  const wrdW4=  kiLevel===1?40 : kiLevel===2?30 : 44;// flat bonus: word exists (4+) — raised for Sharp to ensure word moves always preferred
   const endW3=  kiLevel===1?150: kiLevel===2?300: 400;
   const endW6=  kiLevel===1?20 : kiLevel===2?60 : 80;
   const endW10= kiLevel===1?5  : kiLevel===2?20 : 30;
@@ -1548,6 +1629,7 @@ function oppMaxKills(nb,opp){
 
 function evalMoves(b,player,bSet,maxJumpTargets){
   const opp=player===P1?P2:P1;
+  const oppBestNet=(bb)=>{let m=0;for(const q of getPushMoves(bb,opp)){let a=0,d=0;for(const r of q.result.removed){if(r.owner===opp)d++;else a++;}const n=a-d;if(n>m)m=n;}return m;};
   const myCount=cnt(b,player),oppCount=cnt(b,opp);
   const endW3=kiLevel===1?150:kiLevel===2?300:400;
   const results=[];
@@ -1560,7 +1642,8 @@ function evalMoves(b,player,bSet,maxJumpTargets){
     const ownLost=p.result.removed.filter(x=>x.owner===player).length;
     let sc=kiScore(myCount,oppCount,el,nw.length>0?el:0,lw,cnt(nb,opp),false);
     if(el===0&&ownLost===0)sc-=200;
-    if(ownLost>0){const netRet=(nw.length>0?el:0)-ownLost;sc+=netRet*(kiLevel===3?18:kiLevel===2?12:8);}
+    {const swing=el+(nw.length>0?el:0)-ownLost;sc+=swing*(kiLevel===3?16:kiLevel===2?13:6);}
+    if(kiLevel===2)sc-=oppBestNet(nb)*9;
     // Winning sacrifice: if opponent drops to <=3, override penalties with massive bonus
     if(cnt(nb,opp)<=3)sc=Math.max(sc,endW3+el*20);
     if(kiLevel>1){const dl=oppDangerScore(nb,opp,bSet);const dw=kiLevel===3?18:7;const rawD=dl>=4?dw:0;const comp=el*(kiLevel===3?9:4);sc-=Math.max(0,rawD-comp);}
@@ -1581,7 +1664,8 @@ function evalMoves(b,player,bSet,maxJumpTargets){
         const ownLost2=pf.result.removed.filter(x=>x.owner===player).length;
         let sc2=kiScore(myCount,oppCount,el2,nw2.length>0?el2:0,lw2,cnt(nb2,opp),true);
         if(el2===0&&ownLost2===0)sc2-=200;
-        if(ownLost2>0){const netRet2=(nw2.length>0?el2:0)-ownLost2;sc2+=netRet2*(kiLevel===3?18:kiLevel===2?12:8);}
+        {const swing2=el2+(nw2.length>0?el2:0)-ownLost2;sc2+=swing2*(kiLevel===3?16:kiLevel===2?13:6);}
+        if(kiLevel===2)sc2-=oppBestNet(nb2)*9;
         // Winning sacrifice: if opponent drops to <=3, override penalties with massive bonus
         if(cnt(nb2,opp)<=3)sc2=Math.max(sc2,endW3+el2*20);
         if(kiLevel>1){const dl2=oppDangerScore(nb2,opp,bSet);const dw2=kiLevel===3?18:7;const rawD2=dl2>=4?dw2:0;const comp2=el2*(kiLevel===3?9:4);sc2-=Math.max(0,rawD2-comp2);}
@@ -1602,7 +1686,7 @@ function kiSelfDefense(b,player,opp,bSet,humanKills){
   const killW=bothLow?40:30;
   const wordW=bothLow?10:15;
   const retW=35;
-  const expW=bothLow?20:18;
+  const expW=kiLevel===3?killW:(bothLow?20:18);// Sharp: Exposure kostet so viel wie ein Kill bringt
   const hk=humanKills||0;
   const scored=allM.map(m=>{
     const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
@@ -1621,6 +1705,38 @@ function kiSelfDefense(b,player,opp,bSet,humanKills){
   return scored[0].m.move;
 }
 
+
+// ═══ ENDSPIEL-SUCHE (S5): Material-Minimax, 4 Halbzuege, Alpha-Beta ═══
+// Nur wenn wenige Steine auf dem Brett (kleine Baeume). Zeitbudget haelt den Spielfluss.
+function egMoveList(bb,who){
+  const list=[];
+  for(const p of getPushMoves(bb,who)){
+    let a=0,d=0;for(const r of p.result.removed){if(r.owner===who)d++;else a++;}
+    list.push({p,net:a-d});
+  }
+  list.sort((x,y)=>y.net-x.net);
+  return list;
+}
+function egSearch(bb,who,me,depth,alpha,beta,deadline){
+  const myC=cnt(bb,me),opC=cnt(bb,me===P1?P2:P1);
+  if(opC<=3&&myC<=3)return who===me?900-depth:-900+depth;
+  if(opC<=3)return 1000-depth;
+  if(myC<=3)return -1000+depth;
+  if(depth===0)return myC-opC;
+  if(Date.now()>deadline)return myC-opC;
+  const moves=egMoveList(bb,who).slice(0,10);
+  if(!moves.length)return myC-opC;
+  const isMax=(who===me);
+  let best=isMax?-Infinity:Infinity;
+  for(const m of moves){
+    const nb=applyPush(bb,m.p);
+    const v=egSearch(nb,who===P1?P2:P1,me,depth-1,alpha,beta,deadline);
+    if(isMax){if(v>best)best=v;if(best>alpha)alpha=best;}
+    else{if(v<best)best=v;if(best<beta)beta=best;}
+    if(alpha>=beta)break;
+  }
+  return best;
+}
 function kiPickBestMove(b,player,sac,humanKills){
   const opp=player===P1?P2:P1;
   const beforeWords=findAllWords(b);
@@ -1726,6 +1842,33 @@ function kiPickBestMove(b,player,sac,humanKills){
 
   // Great: prefer word moves, pick best by score
   if(kiLevel===2){
+    // G1: Endspiel-Suche light — 2 Halbzuege, nur 65% der Zuege (Stufentrennung zu Sharp bleibt)
+    const _gMy=cnt(b,player),_gOpp=cnt(b,opp);
+    if(_gMy+_gOpp<=20 && Math.random()<0.65){
+      const _gMoves=evalMoves(b,player,bSet,20);
+      if(_gMoves.length){
+        _gMoves.sort((a,c)=>c.score-a.score);
+        const _gWord=_gMoves.filter(m=>m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=1);
+        const _gNon=_gMoves.filter(m=>!m.move.word);
+        const _gPool=(_gWord.length?_gWord.concat(_gNon.slice(0,6)):_gMoves).slice(0,14);
+        const _gDead=Date.now()+600;
+        let _gBest=null,_gVal=-Infinity;
+        for(const cand of _gPool){
+          const _gEl=cand.move.result.removed.filter(x=>x.owner!==player).length;
+          const _gRet=cand.move.word?_gEl:0;
+          let _gAfter=cand.board;
+          if(_gRet>0){
+            _gAfter={};for(const kk in cand.board)_gAfter[kk]=cand.board[kk];
+            let placed=0;
+            for(let y=0;y<G&&placed<_gRet;y++)for(let x=0;x<G&&placed<_gRet;x++){const kk=K(x,y);if(!_gAfter[kk]){_gAfter[kk]={owner:player,ch:'E'};placed++;}}
+          }
+          const v=egSearch(_gAfter,opp,player,1,-Infinity,Infinity,_gDead)+(cand.move.word?2:0);
+          if(v>_gVal){_gVal=v;_gBest=cand.move;}
+          if(Date.now()>_gDead)break;
+        }
+        if(_gBest)return _gBest;
+      }
+    }
     // Self-defense kicks in at <=14 stones — mild: Great verteidigt weniger zuverlaessig (0.55)
     if(cnt(b,player)<=14 && Math.random()<0.55){const sd=kiSelfDefense(b,player,opp,bSet,humanKills);if(sd)return sd;}
     const moves=evalMoves(b,player,bSet,20);
@@ -1736,16 +1879,45 @@ function kiPickBestMove(b,player,sac,humanKills){
       const kills=m.move.result.removed.filter(x=>x.owner!==player).length;
       return kills >= 1;
     });
-    const pool=wordMoves.length>0?wordMoves:moves;
+    const highKillG=moves.filter(m=>!m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=2);
+    const pool=wordMoves.length>0?wordMoves.concat(highKillG):moves;
     pool.sort((a,c)=>c.score-a.score);
     const top=pool.slice(0,Math.min(3,pool.length));
     return top[Math.floor(Math.random()*top.length)].move;
   }
 
-  // Sharp self-defense: <=14 stones, OR relatively close to opponent (+2), OR forced after human sacrifice
+  // ═══ S5: Endspiel-Suche hat Vorrang vor SD und Endgame-Override ═══
   const myCount2=cnt(b,player);
   const oppCount2b=cnt(b,opp);
-  if(myCount2<=14 || myCount2<=oppCount2b+2 || sac){
+  if(myCount2+oppCount2b<=20){
+    const _egMoves=evalMoves(b,player,bSet,20);
+    if(_egMoves.length){
+      _egMoves.sort((a,c)=>c.score-a.score);
+      const _egWord=_egMoves.filter(m=>m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=1);
+      const _egNon=_egMoves.filter(m=>!m.move.word);
+      const _egPool=(_egWord.length?_egWord.concat(_egNon.slice(0,8)):_egMoves).slice(0,18);
+      const _deadline=Date.now()+900;
+      let bestMoveEG=null,bestValEG=-Infinity;
+      for(const cand of _egPool){
+        const _elE=cand.move.result.removed.filter(x=>x.owner!==player).length;
+        const _retE=cand.move.word?_elE:0;
+        let bAfter=cand.board;
+        if(_retE>0){
+          bAfter={};for(const kk in cand.board)bAfter[kk]=cand.board[kk];
+          let placed=0;
+          for(let y=0;y<G&&placed<_retE;y++)for(let x=0;x<G&&placed<_retE;x++){const kk=K(x,y);if(!bAfter[kk]){bAfter[kk]={owner:player,ch:'E'};placed++;}}
+        }
+        const v=egSearch(bAfter,opp,player,3,-Infinity,Infinity,_deadline)+(cand.move.word?2:0);
+        if(v>bestValEG){bestValEG=v;bestMoveEG=cand.move;}
+        if(Date.now()>_deadline)break;
+      }
+      if(bestMoveEG)return bestMoveEG;
+    }
+  }
+  // S6 Renn-Modus: klar im Rückstand → Material vor Wort, SD pausiert (Durchsatz zählt)
+  const _racing=myCount2<=oppCount2b-2;
+  // Sharp self-defense: <=14 stones, OR relatively close to opponent (+2), OR forced after human sacrifice
+  if(!_racing && (myCount2<=14 || myCount2<=oppCount2b+2 || sac)){
     const sd=kiSelfDefense(b,player,opp,bSet,humanKills);
     if(sd)return sd;
   }
@@ -1778,37 +1950,23 @@ function kiPickBestMove(b,player,sac,humanKills){
     return kills >= 1;
   });
   // H1: keep top non-word moves with >=2 kills in the pool so Sharp can pick trades over weak words
-  const highKillCands=botMoves.filter(m=>!m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=2);
-  const candPool=wordCands.length>0?wordCands.concat(highKillCands.slice(0,4)):botMoves;
-  const candidates=candPool.slice(0,Math.min(12,candPool.length));
+  const nonWordCands=botMoves.filter(m=>!m.move.word);
+  const candPool=_racing?botMoves:(wordCands.length>0?wordCands.concat(nonWordCands.slice(0,8)):botMoves);
+  const candidates=candPool.slice(0,Math.min(18,candPool.length));
 
   let bestMove=null,bestNet=-999999;
   for(const cand of candidates){
     const boardAfterBot=cand.board;
-    const bSet2=new Set(findAllWords(boardAfterBot).map(wordKey));
-    // Ply 2: opponent 8 responses
-    const oppMoves=evalMoves(boardAfterBot,opp,bSet2,8);
-    if(!oppMoves.length){
-      if(cand.score>bestNet){bestNet=cand.score;bestMove=cand.move;}
-      continue;
+    // Beste Material-Antwort des Gegners exakt bepreisen (deckt Eliminierer wie Wortspieler)
+    let oppMat=0;
+    for(const q of getPushMoves(boardAfterBot,opp)){
+      let a=0,d=0;for(const r of q.result.removed){if(r.owner===opp)d++;else a++;}
+      const n=a-d;if(n>oppMat)oppMat=n;
     }
-    oppMoves.sort((a,c)=>c.score-a.score);
-    const oppCandidates=oppMoves.slice(0,Math.min(8,oppMoves.length));
-    // Opponent picks best considering my ply-3 counter
-    let oppWorstForMe=-999999;
-    for(const oppCand of oppCandidates){
-      const boardAfterOpp=oppCand.board;
-      const bSet3=new Set(findAllWords(boardAfterOpp).map(wordKey));
-      // Ply 3: my best counter (top 6)
-      const myCounters=evalMoves(boardAfterOpp,player,bSet3,6);
-      const myCounterBest=myCounters.length>0
-        ?myCounters.reduce((a,c)=>c.score>a.score?c:a,myCounters[0]).score:0;
-      // Opponent's net: their gain minus my counter
-      const oppNet=oppCand.score - myCounterBest*0.6;
-      if(oppNet>oppWorstForMe)oppWorstForMe=oppNet;
-    }
-    // My net: my gain minus opponent's best net response
-    const net=cand.score - oppWorstForMe*0.75;
+    const _el=cand.move.result.removed.filter(x=>x.owner!==player).length;
+    const _ol=cand.move.result.removed.filter(x=>x.owner===player).length;
+    const _gain=_el+(cand.move.word?_el:0)-_ol;
+    const net=(_gain-oppMat)*30+(cand.move.word?(_racing?15:80):0)+cand.score*0.1;
     if(net>bestNet){bestNet=net;bestMove=cand.move;}
   }
   return bestMove||candidates[0].move;
@@ -2228,6 +2386,20 @@ function humanDoPush(push){
       comment=`Zug ${moveNum} — <b>${pieceCh}</b> ${fc}${fr}→${tc}${tr} · ${wn} · ${_elimStr}`;
       commentCls="hl";render();
       _breathing=true;
+      const _wdCap = push.result.removed.filter(x => x.owner !== humanPlayer).map(x => x.ch);
+      const _wdMove = moveNum;
+      if(_wdCap.length>0){
+        setTimeout(()=>{
+          if(hPhase!=="placing" && turn===humanPlayer && moveNum===_wdMove && !gameEnding && !pendingNextTurn){
+            // Animations-Callback verloren — Setz-Phase erzwingen (Wachhund)
+            wordHLMap={};activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;
+            const _wz=document.getElementById("wordZoneMob");if(_wz)_wz.innerHTML="";
+            hRetPending=_wdCap.slice();hRetPlaced=[];hRetSel=null;
+            hPhase="placing";backAvailable=true;
+            setReturnComment();render();
+          }
+        },6500);
+      }
       animateWordBirth(_hlWords,()=>{
         _breathing=false;
         // 4 breaths done — board still highlighted
@@ -2244,14 +2416,14 @@ function humanDoPush(push){
         render();
         // v2.0: Mensch setzt seine zur\u00fcckgewonnenen Buchstaben selbst — Weg 2: exakt die eroberten
         const _capturedLetters = push.result.removed.filter(x => x.owner !== humanPlayer).map(x => x.ch);
-        if(_capturedLetters.length>0){
+        if(_capturedLetters.length>0 && hPhase!=="placing"){
           // Wort-Highlight in der Setz-Phase entfernen (verwirrt beim Platzieren)
           wordHLMap={};activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;
           {const _wz=document.getElementById("wordZoneMob");if(_wz)_wz.innerHTML="";}
           hRetPending=_capturedLetters.slice();hRetPlaced=[];hRetSel=null;
           hPhase="placing";backAvailable=true;
           setReturnComment();render();
-        } else {
+        } else if(hPhase!=="placing") {
           commentCls="human";activeWordBoxes=[];backAvailable=true;lastCompleted="human";
           pendingNextTurn=()=>{turn=aiPlayer;if(!checkGameEnd())setTimeout(()=>humanAITurn(),600);};
           render();
@@ -2319,6 +2491,7 @@ function humanAITurn(){
       },5000);
       _w.onerror=function(){clearTimeout(_botTimeout);_workerFailed=true;_aiWorker=null;if(_w.onmessage)_w.onmessage({data:{best:null}});};
       _w.onmessage=function _onmsg(ev){clearTimeout(_botTimeout);
+    if(window._qForcedBest){ev={data:{best:window._qForcedBest}};window._qForcedBest=null;}
         // === FILMZITAT vor Bot-Ankündigung ===
         // Prüfe BEVOR die Ankündigungs-Logik startet: würde dieser Zug zum Sieg führen?
         const _qBest = ev.data && ev.data.best;
@@ -2482,7 +2655,7 @@ function humanAITurn(){
               // Längere Pause (2.5s) damit Bilanz lesbar bleibt vor dem nächsten Zug
               pendingNextTurn=null;{const _bsq=_botSeq;setTimeout(()=>{if(_botSeq!==_bsq)return;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);}
               render();
-            },_forbiddenB);
+            },_forbiddenB,best.push.result.removed.filter(x=>x.owner!==aiPlayer).map(x=>x.ch));
             if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;{const _bsq=_botSeq;setTimeout(()=>{if(_botSeq!==_bsq)return;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);}render();}
             render();
           });
@@ -2493,7 +2666,7 @@ function humanAITurn(){
             : `${kills} deiner Bst. eliminiert`;
           comment=`Bot · ${_botElimStrNw}`;commentCls="ai";wordHLMap={};
           botTurnPhase=0;turn=humanPlayer;backAvailable=true;lastCompleted="bot";
-          pendingNextTurn=()=>{pendingNextTurn=null;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}};
+          pendingNextTurn=null;{const _bsq=_botSeq;setTimeout(()=>{if(_botSeq!==_bsq)return;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);}
           render();
         }
       });
@@ -2548,7 +2721,7 @@ function humanAITurn(){
     }
     render();};
     }else{
-      setTimeout(()=>{const best=kiPickBestMove(board,aiPlayer);
+      setTimeout(()=>{let best=window._qForcedBest||kiPickBestMove(board,aiPlayer);window._qForcedBest=null;
     if(!best){comment="Bot keine Züge — du bist dran.";commentCls="ai";turn=humanPlayer;render();setTimeout(()=>startHumanTurn(),1600);return;}
     
     // === FILMZITAT vor Bot-Ankündigung (Fallback-Pfad) ===
@@ -2558,10 +2731,11 @@ function humanAITurn(){
       if(_qHCnt - _qHKill < 4){
         _finalQuoteShownThisGame = true;
         window.SHOVECHAT.showFinalQuote();
-        // 3s warten, dann Fallback komplett neu auslösen — _botSeq schützt gegen ZURÜCK dazwischen
+        // 3s warten, dann denselben Zug erzwingen — kein Neu-Würfeln (Zitat muss zum Zug passen)
         const _savedSeq2 = _botSeq;
+        window._qForcedBest = best;
         setTimeout(()=>{ 
-          if(_botSeq !== _savedSeq2) return;// stale
+          if(_botSeq !== _savedSeq2){window._qForcedBest=null;return;}// stale
           humanAITurn(); 
         }, 3000);
         return;
@@ -2690,7 +2864,7 @@ function humanAITurn(){
               // Längere Pause (2.5s) damit Bilanz lesbar bleibt vor dem nächsten Zug
               pendingNextTurn=null;{const _bsq=_botSeq;setTimeout(()=>{if(_botSeq!==_bsq)return;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);}
               render();
-            },_forbiddenB);
+            },_forbiddenB,best.push.result.removed.filter(x=>x.owner!==aiPlayer).map(x=>x.ch));
             if(ret===0){botTurnPhase=0;botReturnSnap=null;activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();backAvailable=true;lastCompleted="bot";pendingNextTurn=null;{const _bsq=_botSeq;setTimeout(()=>{if(_botSeq!==_bsq)return;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);}render();}
             render();
           });
@@ -2701,7 +2875,7 @@ function humanAITurn(){
             : `${kills} deiner Bst. eliminiert`;
           comment=`Bot · ${_botElimStrNw}`;commentCls="ai";wordHLMap={};
           botTurnPhase=0;turn=humanPlayer;backAvailable=true;lastCompleted="bot";
-          pendingNextTurn=()=>{pendingNextTurn=null;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}};
+          pendingNextTurn=null;{const _bsq=_botSeq;setTimeout(()=>{if(_botSeq!==_bsq)return;turn=humanPlayer;if(!checkGameEnd()){render();startHumanTurn();}},2500);}
           render();
         }
       });
@@ -2788,7 +2962,7 @@ function render(){
         <button class="ctrl-btn" onclick="simPhase='rules';render()" style="padding:13px;font-size:11px;letter-spacing:2px;width:100%">📖 SO GEHT'S</button>
       </div>
       <div style="margin-top:28px;font-size:9px;color:rgba(255,255,255,.25);letter-spacing:2px;line-height:1.8;text-align:center">SHOVE™ · © 2026 Marc Conrad<br>nach OVERBOARD von Alex Randolph</div>
-      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.0</div>
+      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.1</div>
     </div>`;
     return;
   }
@@ -2875,7 +3049,7 @@ function render(){
       ${revealDone?`<div style="margin-top:12px;text-align:center">
         <div style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:6px">BOT-STÄRKE</div>
         <div style="display:flex;gap:10px;justify-content:center;align-items:flex-start">
-          ${[["Nice",1,"rgba(96,165,250,.9)","Trainingslager"],["Great",2,"rgba(245,158,11,.9)","Wörter bilden"],["Sharp",3,"rgba(239,68,68,.9)","Die Schlacht"]].map(([lbl,lv,col,desc])=>`<div onclick="kiLevel=${lv};render()" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer"><div style="padding:7px 14px;border-radius:10px;border:1.5px solid ${kiLevel===lv?col:"rgba(255,255,255,.1)"};background:${kiLevel===lv?"rgba(255,255,255,.08)":"rgba(255,255,255,.03)"};font-size:10px;font-weight:${kiLevel===lv?900:600};color:${kiLevel===lv?col:"rgba(255,255,255,.5)"};transition:all .15s">${lbl}</div><div style="font-size:9px;color:${kiLevel===lv?col:"rgba(255,255,255,.4)"};letter-spacing:.5px;font-weight:${kiLevel===lv?700:500};transition:all .15s">${desc}</div></div>`).join("")}
+          ${[["Nice",1,"rgba(96,165,250,.9)","Trainingslager"],["Great",2,"rgba(245,158,11,.9)","Wörter bilden"],["Sharp",3,"rgba(239,68,68,.9)","Das Turnier"]].map(([lbl,lv,col,desc])=>`<div onclick="kiLevel=${lv};render()" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer"><div style="padding:7px 14px;border-radius:10px;border:1.5px solid ${kiLevel===lv?col:"rgba(255,255,255,.1)"};background:${kiLevel===lv?"rgba(255,255,255,.08)":"rgba(255,255,255,.03)"};font-size:10px;font-weight:${kiLevel===lv?900:600};color:${kiLevel===lv?col:"rgba(255,255,255,.5)"};transition:all .15s">${lbl}</div><div style="font-size:9px;color:${kiLevel===lv?col:"rgba(255,255,255,.4)"};letter-spacing:.5px;font-weight:${kiLevel===lv?700:500};transition:all .15s">${desc}</div></div>`).join("")}
         </div>
       </div>
       <div style="margin-top:12px;font-size:10px;color:rgba(255,255,255,.5);letter-spacing:1px">Wer fängt an?</div>
@@ -3737,7 +3911,7 @@ fullReset();render();
         "ZURÜCK und {loc} prüfen — {gain} weitere Buchstaben.",
         "{loc} hatte {gain} mehr für dich.",
         "Mit einem Wort in {loc}: {gain} Buchstaben extra.",
-        "Du killst — aber in {loc} hättest du killen und ein Wort bilden können. {gain} mehr.",
+        "Du eliminierst — aber in {loc} hättest du eliminieren und ein Wort bilden können. {gain} mehr.",
         "Knapp daneben{name_comma}. {gain} Buchstaben mehr lagen in {loc}.",
       ],
       // KEIN SHARP-Pool: In Sharp keine Mehrgewinn-Hinweise (Schlacht-Modus, nicht Trainer)
@@ -3748,7 +3922,7 @@ fullReset();render();
       nice: [
         "{KillWord} Bot-Buchstaben weg — und das ohne Wort{name_comma}. Effizient.",
         "Du hast {kill} eliminiert. Ohne Wort, aber wirkungsvoll.",
-        "Killer-Modus an. {kill} weniger für mich.",
+        "Eliminierer-Modus an. {kill} weniger für mich.",
         "Brutal sauber{name_comma}. {kill} meiner Buchstaben sind weg.",
         "{kill} Bot-Buchstaben in einem Zug. Du gehst gründlich vor.",
         "Solche Züge tun weh — auf meiner Seite.",
@@ -3757,10 +3931,10 @@ fullReset();render();
       ],
       default: [
         "{kill} Bot-Buchstaben weg{name_comma}. Ohne Wort. Stark.",
-        "Du killst gut{name_comma} — {kill} auf einen Schlag.",
+        "Du eliminierst gezielt{name_comma} — {kill} auf einen Schlag.",
         "Brutal effizient: {kill} eliminiert.",
         "Kein Wort — aber {kill} Bot-Buchstaben. Auch eine Strategie.",
-        "Killer-Zug{name_comma}.",
+        "Eliminierer-Zug{name_comma}.",
         "{kill} weg. Hartes Spiel.",
         "Du gehst gründlich vor.",
       ],
@@ -3771,7 +3945,7 @@ fullReset();render();
         "Effizient. Schmerzhaft.",
         "Ohne Wort, aber {kill} weniger für mich. Das spüre ich.",
         "Wer so spielt, gewinnt vermutlich. Du bist auf gutem Weg.",
-        "Killer-Modus. Ich bewundere das{name_comma} — und fürchte es.",
+        "Eliminierer-Modus. Ich bewundere das{name_comma} — und fürchte es.",
       ],
     },
     
@@ -3779,29 +3953,29 @@ fullReset();render();
     // (also netto Bilanz <= +1 trotz Kills). Tonlage: didaktisch, "lohnt sich nicht"
     bad_killing: {
       nice: [
-        "Du killst {kill} meiner — aber verlierst {loss} eigene. Lohnt sich nicht{name_comma}.",
+        "Du eliminierst {kill} meiner — aber verlierst {loss} eigene. Lohnt sich nicht{name_comma}.",
         "Bilanz fast null: {kill} bei mir, {loss} bei dir. Mit ZURÜCK probier was anderes.",
         "Beide Seiten verlieren etwa gleich viel. Das hilft niemandem — vor allem dir nicht.",
-        "Du killst — aber teuer{name_comma}. {loss} eigene gegen {kill} meiner.",
+        "Du eliminierst — aber teuer{name_comma}. {loss} eigene gegen {kill} meiner.",
         "Ohne Wort kommen keine Buchstaben zurück. {loss} verloren ist {loss} weniger.",
-        "Schau den Zug nochmal an{name_comma}. Du opferst so viel, wie du killst.",
+        "Schau den Zug nochmal an{name_comma}. Du opferst so viel, wie du eliminierst.",
         "Kein Wort, kein Mehrgewinn — nur gemeinsamer Verlust.",
-        "Du gehst zu hart vor. Bei {kill}:{loss} ist das eher Patt als Killing.",
+        "Du gehst zu hart vor. Bei {kill}:{loss} ist das eher Patt als Fortschritt.",
       ],
       default: [
-        "Patt-Killing: {kill} meiner, {loss} deiner. Kein Mehrwert.",
-        "Du killst hart{name_comma} — aber teuer für dich.",
+        "Patt-Tausch: {kill} meiner, {loss} deiner. Kein Mehrwert.",
+        "Du eliminierst hart{name_comma} — aber teuer für dich.",
         "{kill} bei mir, {loss} bei dir. Lohnt sich nicht.",
         "Ohne Wort und mit Selbstverlust — das ist kein Gewinn.",
         "Beide schrumpfen{name_comma}. Du nicht weniger als ich.",
-        "Killer-Zug, aber teuer erkauft.",
+        "Eliminiert, aber teuer erkauft.",
       ],
       sharp: [
         "Du tauschst {kill} gegen {loss}{name_comma}. Wir schrumpfen gemeinsam.",
         "Auch ich verliere — aber du nicht weniger.",
         "Schöner Zug. Vor allem für niemanden.",
-        "Patt-Killing. Wir bewegen uns rückwärts.",
-        "Du killst — und blutest mit. Faszinierend.",
+        "Patt-Tausch. Wir bewegen uns rückwärts.",
+        "Du eliminierst — und blutest mit. Faszinierend.",
         "{loss} eigene für {kill} meiner. Mathematik nach Pyrrhos.",
       ],
     },
@@ -3938,9 +4112,9 @@ fullReset();render();
       nice: [
         "Du suchst noch{name_comma}. Lass dir Zeit, Wörter kommen, wenn man hinschaut.",
         "Drei Züge, kein Wort. Mit ZURÜCK kannst du nochmal nachdenken.",
-        "Killen alleine bringt dich nicht weiter. Schau das Brett an, da liegen Wörter.",
+        "Eliminieren alleine bringt dich nicht weiter. Schau das Brett an, da liegen Wörter.",
         "Atme durch{name_comma}. Schau die Reihen und Spalten nacheinander an.",
-        "Du killst — aber baust nicht. Versuch ein Wort zu sehen.",
+        "Du eliminierst — aber baust nicht. Versuch ein Wort zu sehen.",
         "Wörter sind dein Werkzeug. Vergiss sie nicht.",
         "Geh ein paar Züge zurück und schau nochmal genau hin.",
         "Du läufst gerade leer. Ein Wort hilft dir mehr als drei Kills.",
@@ -3949,9 +4123,9 @@ fullReset();render();
         "Du suchst noch{name_comma}. Ich warte.",
         "Drei Züge, kein Wort. Kein Druck.",
         "Lass dir Zeit. Wörter kommen, wenn man hinschaut.",
-        "Du killst — aber baust nicht.",
+        "Du eliminierst — aber baust nicht.",
         "Mein zweiter Vorname ist Geduld.",
-        "Killen alleine reicht nicht. Das weißt du.",
+        "Eliminieren alleine reicht nicht. Das weißt du.",
         "Wörter sind dein Werkzeug.",
         "Schau das Brett an. Wirklich an.",
         "Drei Züge ohne Wort. Was siehst du nicht?",
