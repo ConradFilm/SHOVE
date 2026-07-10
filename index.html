@@ -545,6 +545,16 @@ function kiPickBestMove(b,player,sac,humanKills){
 
   // Great: prefer word moves, pick best by score
   if(kiLevel===2){
+    // Wortliebe: solange ein Wortzug mit Kill existiert, spielt Great ihn (Wuerfel aus Top 15)
+    {
+      const _wl=evalMoves(b,player,bSet,20);
+      const _wlPool=_wl.filter(m=>m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=1);
+      if(_wlPool.length){
+        _wlPool.sort((a,c)=>c.score-a.score);
+        const _wlTop=_wlPool.slice(0,Math.min(15,_wlPool.length));
+        return _wlTop[Math.floor(Math.random()*_wlTop.length)].move;
+      }
+    }
     // G1: Endspiel-Suche light — 2 Halbzuege, nur 65% der Zuege (Stufentrennung zu Sharp bleibt)
     const _gMy=cnt(b,player),_gOpp=cnt(b,opp);
     if(_gMy+_gOpp<=20 && Math.random()<0.65){
@@ -1842,6 +1852,16 @@ function kiPickBestMove(b,player,sac,humanKills){
 
   // Great: prefer word moves, pick best by score
   if(kiLevel===2){
+    // Wortliebe: solange ein Wortzug mit Kill existiert, spielt Great ihn (Wuerfel aus Top 15)
+    {
+      const _wl=evalMoves(b,player,bSet,20);
+      const _wlPool=_wl.filter(m=>m.move.word&&m.move.result.removed.filter(x=>x.owner!==player).length>=1);
+      if(_wlPool.length){
+        _wlPool.sort((a,c)=>c.score-a.score);
+        const _wlTop=_wlPool.slice(0,Math.min(15,_wlPool.length));
+        return _wlTop[Math.floor(Math.random()*_wlTop.length)].move;
+      }
+    }
     // G1: Endspiel-Suche light — 2 Halbzuege, nur 65% der Zuege (Stufentrennung zu Sharp bleibt)
     const _gMy=cnt(b,player),_gOpp=cnt(b,opp);
     if(_gMy+_gOpp<=20 && Math.random()<0.65){
@@ -2123,7 +2143,7 @@ function setReturnComment(){
     return `<span onclick="selectReturnTile(${i})" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin:0 3px;border-radius:6px;font-family:'Libre Franklin',sans-serif;font-weight:800;font-size:16px;color:#fff;background:${col};border:1px solid ${bd};cursor:pointer;vertical-align:middle;${on?'box-shadow:0 0 0 2px #f59e0b':''}">${ch}</span>`;
   }).join('');
   let hint;
-  if(hRetPending.length===0) hint='Alles gesetzt \u2014 <b>WEITER</b> schlie\u00dft den Zug ab, <b>ZUR\u00dcCK</b> nimmt einen Bst. wieder auf.';
+  if(hRetPending.length===0) hint='Alles gesetzt \u2014 <b>WEITER</b> schlie\u00dft den Zug ab,<br><b>ZUR\u00dcCK</b> nimmt einen Bst. wieder auf.';
   else if(hRetSel!=null) hint=`Tippe ein freies Feld f\u00fcr <b>${hRetPending[hRetSel]}</b>.`;
   else hint='Tippe einen Bst., dann ein freies Feld.';
   comment=(tiles?tiles+'<br>':'')+hint;
@@ -2962,7 +2982,7 @@ function render(){
         <button class="ctrl-btn" onclick="simPhase='rules';render()" style="padding:13px;font-size:11px;letter-spacing:2px;width:100%">📖 SO GEHT'S</button>
       </div>
       <div style="margin-top:28px;font-size:9px;color:rgba(255,255,255,.25);letter-spacing:2px;line-height:1.8;text-align:center">SHOVE™ · © 2026 Marc Conrad<br>nach OVERBOARD von Alex Randolph</div>
-      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.1</div>
+      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.2</div>
     </div>`;
     return;
   }
