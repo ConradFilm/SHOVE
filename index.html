@@ -887,6 +887,23 @@ function pickBoard(){
   _usedBoardIndices.push(idx);_currentBoardIndex=idx+1;return BOARD_POOL[idx];
 }
 
+let _scatterMode=false;
+let _lyingWords=[];
+const STONE_DIST={E:8,N:5,I:4,S:4,A:3,R:3,T:3,D:2,H:2,L:2,O:2,U:2,B:1,C:1,F:1,G:1,K:1,M:1,P:1,W:1};
+function makeScatterBoard(){
+  // Die 48 Steine des Brettspiels, zufällig übers Brett gestreut, G6 leer
+  const bag=[];
+  for(const c in STONE_DIST)for(let i=0;i<STONE_DIST[c];i++)bag.push(c);
+  for(let i=bag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[bag[i],bag[j]]=[bag[j],bag[i]];}
+  const rows=[];let n=0;
+  for(let y=0;y<G;y++){
+    const r=[];
+    for(let x=0;x<G;x++){ if(x===6&&y===5)r.push("\u00b7"); else r.push(bag[n++]); }
+    rows.push(r);
+  }
+  return {name:"BRETT",rows};
+}
+
 
 function renderMiniBoard(board, humanPlayer, hiddenWord) {
   if(!board) return '';
@@ -1071,7 +1088,7 @@ function renderGameover(){
       </div>
     </div>
     <div style="display:flex;gap:12px">
-      <button class="ctrl-btn" onclick="fullReset();startBoardReveal()" style="padding:12px 24px;font-size:10px">↺ NOCHMAL</button>
+      <button class="ctrl-btn" onclick="fullReset();simPhase='board-choice';render()" style="padding:12px 24px;font-size:10px">↺ NOCHMAL</button>
       <button class="ctrl-btn gold" onclick="fullReset();simPhase='intro';render()" style="padding:12px 24px;font-size:10px">MENÜ</button>
     </div>
   </div>`;
@@ -1993,14 +2010,26 @@ function kiPickBestMove(b,player,sac,humanKills){
 }
 
 // ═══ BOARD REVEAL ═══
-function startBoardReveal(){
-  currentBoardDef=pickBoard();
+function startBoardReveal(scatter){
+  _scatterMode=!!scatter;
+  if(_scatterMode){
+    // Frei gelegt: still neu mischen, bis mindestens ein Wort liegt (Garantie fuer den Anleitungssatz)
+    let def=null,lw=[],tries=0;
+    do{def=makeScatterBoard();lw=findAllWords(buildStartBoard(def),WORDS_PLAYER);tries++;}while(tries<40&&lw.length===0);
+    currentBoardDef=def;_lyingWords=lw;
+  }else{currentBoardDef=pickBoard();_lyingWords=[];}
   const base=buildStartBoard(currentBoardDef);
   revealBoard={};revealOwners={};revealOrder=[];revealProgress=0;revealDone=false;
   const keys=Object.keys(base);const sh=[...keys];
   for(let i=sh.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[sh[i],sh[j]]=[sh[j],sh[i]];}
-  sh.forEach((k,i)=>{revealOwners[k]=i<Math.ceil(sh.length/2)?P1:P2;});
-  for(let y=0;y<G;y++)for(let x=0;x<G;x++){const k=K(x,y);if(base[k])revealOrder.push(k);}
+  if(_scatterMode){
+    // Abwechselndes Legen wie am Tisch: zufällige Feldfolge, Farben alternierend → exakt 24/24
+    revealOrder=sh;
+    sh.forEach((k,i)=>{revealOwners[k]=i%2===0?P1:P2;});
+  } else {
+    sh.forEach((k,i)=>{revealOwners[k]=i<Math.ceil(sh.length/2)?P1:P2;});
+    for(let y=0;y<G;y++)for(let x=0;x<G;x++){const k=K(x,y);if(base[k])revealOrder.push(k);}
+  }
   simPhase="board-reveal";render();
   setTimeout(()=>revealTick(),120);
 }
@@ -2010,7 +2039,7 @@ function revealTick(){
   const k=revealOrder[revealProgress];const{x,y}=PK(k);
   revealBoard[k]={owner:revealOwners[k],ch:currentBoardDef.rows[y][x]};
   revealProgress++;render();
-  const delay=PK(revealOrder[revealProgress-1]).x===0&&revealProgress>1?360:110;
+  const delay=!_scatterMode&&PK(revealOrder[revealProgress-1]).x===0&&revealProgress>1?360:110;
   revealTimer=setTimeout(()=>revealTick(),delay);
 }
 
@@ -2982,7 +3011,7 @@ function render(){
         <button class="ctrl-btn" onclick="simPhase='rules';render()" style="padding:13px;font-size:11px;letter-spacing:2px;width:100%">📖 SO GEHT'S</button>
       </div>
       <div style="margin-top:28px;font-size:9px;color:rgba(255,255,255,.25);letter-spacing:2px;line-height:1.8;text-align:center">SHOVE™ · © 2026 Marc Conrad</div>
-      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.3</div>
+      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.4</div>
     </div>`;
     return;
   }
@@ -2996,8 +3025,8 @@ function render(){
       <input id="nameInput" type="text" maxlength="20" placeholder="Name oder Nickname"
         style="background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.2);border-radius:10px;padding:14px 18px;font-size:16px;color:#fff;font-family:'Libre Franklin',sans-serif;width:100%;max-width:280px;text-align:center;outline:none"
         oninput="playerName=this.value.trim()"
-        onkeydown="if(event.key==='Enter'&&playerName.length>0)startBoardReveal()">
-      <button class="ctrl-btn gold" onclick="if(playerName.length>0)startBoardReveal();else document.getElementById('nameInput').focus()" style="padding:14px 40px;font-size:12px;letter-spacing:2px;width:100%;max-width:280px">SPIELEN →</button>
+        onkeydown="if(event.key==='Enter'&&playerName.length>0){simPhase='board-choice';render()}">
+      <button class="ctrl-btn gold" onclick="if(playerName.length>0){simPhase='board-choice';render()}else document.getElementById('nameInput').focus()" style="padding:14px 40px;font-size:12px;letter-spacing:2px;width:100%;max-width:280px">SPIELEN →</button>
     </div>`;
     setTimeout(()=>{const el=document.getElementById('nameInput');if(el)el.focus();},100);
     return;
@@ -3037,14 +3066,35 @@ function render(){
         <p style="margin-bottom:6px"><b style="color:rgba(255,255,255,.9)">Nicht gewertet werden:</b></p>
         <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Eigennamen, Orts- und Ländernamen, Firmennamen, Abkürzungen. BERLIN, NIKE, PKW zählen nicht.</p>
         <p style="margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(155,106,181,.4)">Im Zweifel gilt: Wenn du das Wort in einem deutschen Satz verwenden würdest, ohne es als fremd oder als Namen zu empfinden, ist es gültig.</p>
-        <p style="margin-bottom:0;font-size:12px;line-height:1.7"><b style="color:#e07820">Ein Wort zählt nur,</b> wenn sich mindestens ein Buchstabe davon durch den Zug bewegt hat.</p>
+        <p style="margin-bottom:0;font-size:12px;line-height:1.7"><b style="color:#e07820">Ein Wort zählt nur,</b> wenn es durch den Zug neu entsteht oder sich verschiebt. Dasselbe Wort an derselben Stelle zählt nicht — auch wenn ein gleicher Buchstabe hineingerutscht ist.</p>
         <p style="margin-top:18px;padding:10px 14px;border-radius:10px;background:rgba(224,120,32,.07);border:1px solid rgba(224,120,32,.35);font-size:13px;line-height:1.7"><b style="color:#e07820;font-size:14px">Der SHOVE Bot.</b> Nach dem Spiel zeigt er dir, welche Wörter du nicht gesehen hast. Dein Auge wird schärfer.</p>
       </div>
       <button class="ctrl-btn gold" onclick="simPhase='name-entry';render()" style="margin-top:28px;padding:12px 36px;font-size:12px;letter-spacing:1px">VERSTANDEN ▶</button>
       <div style="margin-top:16px;font-size:9px;color:rgba(255,255,255,.4)">SHOVE™ · © 2026 Marc Conrad</div>
     </div>`;
     return;
-  }  // ── COLOR PICK ──
+  }
+
+  // ── BOARD CHOICE ──
+  if(simPhase==="board-choice"){
+    if(mc)mc.style.display="none";
+    app.innerHTML=`<div style="min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:20px">
+      <div class="title-sm">WÄHLE DEIN BRETT</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center">
+        <div onclick="startBoardReveal(false)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px 22px;border-radius:14px;border:2px solid rgba(245,158,11,.35);background:rgba(245,158,11,.08);width:190px">
+          <div style="font-family:'Libre Franklin',sans-serif;font-size:13px;font-weight:900;color:#f59e0b;letter-spacing:2px">KURATIERTES<br>BRETT</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.6);letter-spacing:.5px;text-align:center;line-height:1.6">Ein von uns gebautes Brett aus dem Vorrat — mit Nummer.</div>
+        </div>
+        <div onclick="startBoardReveal(true)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px 22px;border-radius:14px;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);width:190px">
+          <div style="font-family:'Libre Franklin',sans-serif;font-size:13px;font-weight:900;color:rgba(255,255,255,.85);letter-spacing:2px">FREI GELEGTES<br>BRETT</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.6);letter-spacing:.5px;text-align:center;line-height:1.6">Die 48 Steine, zufällig gestreut — dieses Brett gibt es nur einmal.</div>
+        </div>
+      </div>
+    </div>`;
+    return;
+  }
+
+  // ── COLOR PICK ──
   if(simPhase==="board-reveal"){
     if(mc)mc.style.display="flex";
     mc.querySelector('#btnBack').style.opacity='0.25';mc.querySelector('#btnBack').style.pointerEvents='none';
@@ -3062,11 +3112,20 @@ function render(){
       if(tile){bHtml2+=`<div class="tile ${tile.owner===P1?'p1':'p2'}" >${tile.ch}</div>`;}
       bHtml2+=`</div>`;
     }
+    if(_scatterMode&&revealDone){
+      for(const w of _lyingWords){
+        const a=PK(w.cells[0]),b=PK(w.cells[w.cells.length-1]),P=5;
+        const l=Math.min(a.x,b.x)*(CELL+GAP)+12-P,t=Math.min(a.y,b.y)*(CELL+GAP)+12-P;
+        const wd=Math.abs(b.x-a.x)*(CELL+GAP)+CELL+2*P,ht=Math.abs(b.y-a.y)*(CELL+GAP)+CELL+2*P;
+        bHtml2+=`<div style="position:absolute;left:${l}px;top:${t}px;width:${wd}px;height:${ht}px;border:3px solid #f5c518;border-radius:11px;box-shadow:0 0 10px rgba(245,197,24,.5);pointer-events:none;z-index:5"></div>`;
+      }
+    }
     bHtml2+=`</div>`;
     app.innerHTML=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:8px 8px 8px">
-      <div style="font-size:9px;letter-spacing:3px;color:rgba(255,255,255,.4);margin-top:90px;margin-bottom:18px">BRETT #${_currentBoardIndex}</div>
+      <div style="font-size:9px;letter-spacing:3px;color:rgba(255,255,255,.4);margin-top:90px;margin-bottom:18px">${_scatterMode?"DAS BRETT":"BRETT #"+_currentBoardIndex}</div>
       <div style="transform:scale(${sc2});transform-origin:top center;width:${vpW2}px">${bHtml2}</div>
       ${revealDone?`<div style="margin-top:12px;text-align:center">
+        ${_scatterMode?`<div style="font-size:10px;color:#f5c518;letter-spacing:.5px;margin:0 auto 12px;max-width:340px;line-height:1.6">Gold umrandet: Diese Wörter liegen schon. Sie zählen erst, wenn ein Zug sie verschiebt oder vollendet.</div>`:``}
         <div style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:6px">BOT-STÄRKE</div>
         <div style="display:flex;gap:10px;justify-content:center;align-items:flex-start">
           ${[["Nice",1,"rgba(96,165,250,.9)","Trainingslager"],["Great",2,"rgba(245,158,11,.9)","Wörter bilden"],["Sharp",3,"rgba(239,68,68,.9)","Das Turnier"]].map(([lbl,lv,col,desc])=>`<div onclick="kiLevel=${lv};render()" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer"><div style="padding:7px 14px;border-radius:10px;border:1.5px solid ${kiLevel===lv?col:"rgba(255,255,255,.1)"};background:${kiLevel===lv?"rgba(255,255,255,.08)":"rgba(255,255,255,.03)"};font-size:10px;font-weight:${kiLevel===lv?900:600};color:${kiLevel===lv?col:"rgba(255,255,255,.5)"};transition:all .15s">${lbl}</div><div style="font-size:9px;color:${kiLevel===lv?col:"rgba(255,255,255,.4)"};letter-spacing:.5px;font-weight:${kiLevel===lv?700:500};transition:all .15s">${desc}</div></div>`).join("")}
@@ -3080,7 +3139,7 @@ function render(){
         <div onclick="chooseStarter(false)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 22px;border-radius:14px;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)">
           <div style="font-family:'Libre Franklin',sans-serif;font-size:20px;font-weight:800;color:#fff;letter-spacing:3px">BOT</div><div style="font-family:'Libre Franklin',sans-serif;font-size:11px;font-weight:900;color:rgba(255,255,255,.85);letter-spacing:1px">BEGINNT</div>
         </div>
-      </div>`:`<div style="margin-top:16px;font-size:10px;color:rgba(255,255,255,.3);letter-spacing:1px">Brett wird geladen…</div>`}
+      </div>`:`<div style="margin-top:16px;font-size:10px;color:rgba(255,255,255,.3);letter-spacing:1px">Brett wird ${_scatterMode?"gemischt":"geladen"}…</div>`}
     </div>`;
     return;
   }
