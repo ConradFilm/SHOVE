@@ -889,6 +889,7 @@ function pickBoard(){
 
 let _scatterMode=false;
 let _lyingWords=[];
+let _lyingShow=[];
 const STONE_DIST={E:8,N:5,I:4,S:4,A:3,R:3,T:3,D:2,H:2,L:2,O:2,U:2,B:1,C:1,F:1,G:1,K:1,M:1,P:1,W:1};
 function makeScatterBoard(){
   // Die 48 Steine des Brettspiels, zufällig übers Brett gestreut, G6 leer
@@ -2017,7 +2018,9 @@ function startBoardReveal(scatter){
     let def=null,lw=[],tries=0;
     do{def=makeScatterBoard();lw=findAllWords(buildStartBoard(def),WORDS_PLAYER);tries++;}while(tries<40&&lw.length===0);
     currentBoardDef=def;_lyingWords=lw;
-  }else{currentBoardDef=pickBoard();_lyingWords=[];}
+    // Anzeige: nur maximale Wörter rahmen (NEUN in NEUNT nicht doppelt)
+    _lyingShow=lw.filter(w=>!lw.some(v=>v!==w&&v.cells.length>w.cells.length&&w.cells.every(c=>v.cells.includes(c))));
+  }else{currentBoardDef=pickBoard();_lyingWords=[];_lyingShow=[];}
   const base=buildStartBoard(currentBoardDef);
   revealBoard={};revealOwners={};revealOrder=[];revealProgress=0;revealDone=false;
   const keys=Object.keys(base);const sh=[...keys];
@@ -3113,11 +3116,12 @@ function render(){
       bHtml2+=`</div>`;
     }
     if(_scatterMode&&revealDone){
-      for(const w of _lyingWords){
+      for(const w of _lyingShow){
         const a=PK(w.cells[0]),b=PK(w.cells[w.cells.length-1]),P=5;
+        const col=w.dir==="row"?"#4caf50":"#42a5f5";
         const l=Math.min(a.x,b.x)*(CELL+GAP)+12-P,t=Math.min(a.y,b.y)*(CELL+GAP)+12-P;
         const wd=Math.abs(b.x-a.x)*(CELL+GAP)+CELL+2*P,ht=Math.abs(b.y-a.y)*(CELL+GAP)+CELL+2*P;
-        bHtml2+=`<div style="position:absolute;left:${l}px;top:${t}px;width:${wd}px;height:${ht}px;border:3px solid #f5c518;border-radius:11px;box-shadow:0 0 10px rgba(245,197,24,.5);pointer-events:none;z-index:5"></div>`;
+        bHtml2+=`<div style="position:absolute;left:${l}px;top:${t}px;width:${wd}px;height:${ht}px;border:3px solid ${col};border-radius:11px;box-shadow:0 0 10px ${col}80;pointer-events:none;z-index:5"></div>`;
       }
     }
     bHtml2+=`</div>`;
@@ -3125,7 +3129,7 @@ function render(){
       <div style="font-size:9px;letter-spacing:3px;color:rgba(255,255,255,.4);margin-top:90px;margin-bottom:18px">${_scatterMode?"DAS BRETT":"BRETT #"+_currentBoardIndex}</div>
       <div style="transform:scale(${sc2});transform-origin:top center;width:${vpW2}px">${bHtml2}</div>
       ${revealDone?`<div style="margin-top:12px;text-align:center">
-        ${_scatterMode?`<div style="font-size:10px;color:#f5c518;letter-spacing:.5px;margin:0 auto 12px;max-width:340px;line-height:1.6">Golden umrandet: Diese Wörter liegen schon.<br>Sie zählen erst, wenn ein Zug sie verschiebt oder vollendet.</div>`:``}
+        ${_scatterMode?`<div style="font-size:10px;color:rgba(255,255,255,.6);letter-spacing:.5px;margin:0 auto 12px;max-width:340px;line-height:1.6">Diese Wörter liegen schon.<br>Sie zählen erst, wenn ein Zug sie verschiebt oder vollendet.</div>`:``}
         <div style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:6px">BOT-STÄRKE</div>
         <div style="display:flex;gap:10px;justify-content:center;align-items:flex-start">
           ${[["Nice",1,"rgba(96,165,250,.9)","Trainingslager"],["Great",2,"rgba(245,158,11,.9)","Wörter bilden"],["Sharp",3,"rgba(239,68,68,.9)","Das Turnier"]].map(([lbl,lv,col,desc])=>`<div onclick="kiLevel=${lv};render()" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer"><div style="padding:7px 14px;border-radius:10px;border:1.5px solid ${kiLevel===lv?col:"rgba(255,255,255,.1)"};background:${kiLevel===lv?"rgba(255,255,255,.08)":"rgba(255,255,255,.03)"};font-size:10px;font-weight:${kiLevel===lv?900:600};color:${kiLevel===lv?col:"rgba(255,255,255,.5)"};transition:all .15s">${lbl}</div><div style="font-size:9px;color:${kiLevel===lv?col:"rgba(255,255,255,.4)"};letter-spacing:.5px;font-weight:${kiLevel===lv?700:500};transition:all .15s">${desc}</div></div>`).join("")}
