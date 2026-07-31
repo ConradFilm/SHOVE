@@ -2132,7 +2132,7 @@ function handleCellClick(x,y){
   if(hPhase==="placing"){
     const _pi=hRetPlaced.findIndex(p=>p.k===k);
     if(_pi>=0){const p=hRetPlaced[_pi];delete board[k];returnedKeys.delete(k);hRetPlaced.splice(_pi,1);hRetPending.push(p.ch);hRetSel=null;setReturnComment();render();return;}
-    if(!board[k]&&hRetSel!=null&&hRetPending[hRetSel]!=null){const ch=hRetPending[hRetSel];board[k]={owner:humanPlayer,ch};returnedKeys.add(k);hRetPlaced.push({k,ch});hRetPending.splice(hRetSel,1);hRetSel=null;setReturnComment();render();return;}
+    if(!board[k]&&hRetSel!=null&&hRetPending[hRetSel]!=null){const ch=hRetPending[hRetSel];board[k]={owner:humanPlayer,ch};returnedKeys.add(k);hRetPlaced.push({k,ch});if(window.SHOVEAUDIO)window.SHOVEAUDIO.playReturn(hRetPlaced.length-1);hRetPending.splice(hRetSel,1);hRetSel=null;setReturnComment();render();return;}
     return;
   }
   if(hPhase==="select"){
@@ -3014,7 +3014,7 @@ function render(){
         <button class="ctrl-btn" onclick="simPhase='rules';render()" style="padding:13px;font-size:11px;letter-spacing:2px;width:100%">📖 SO GEHT'S</button>
       </div>
       <div style="margin-top:28px;font-size:9px;color:rgba(255,255,255,.25);letter-spacing:2px;line-height:1.8;text-align:center">SHOVE™ · © 2026 Marc Conrad</div>
-      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.5</div>
+      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.6</div>
     </div>`;
     return;
   }
