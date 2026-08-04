@@ -823,6 +823,7 @@ const DIRS=[{dx:1,dy:0,n:"→"},{dx:-1,dy:0,n:"←"},{dx:0,dy:1,n:"↓"},{dx:0,d
 // ═══ STATE ═══
 let board={},turn=P1,humanPlayer=P1,aiPlayer=P2,humanStartsGame=true;
 let simPhase="intro",kiLevel=2,playerName="";
+let duellMode=false;
 let history=[],comment="",commentCls="",snapBot=null,snapHuman=null,backAvailable=false,lastCompleted=null;
 let _lastCommentSig="";// track last rendered comment signature — re-trigger fade-in only on change
 let wordHLMap={},moveNum=0,gameEnding=false,timer=null;
@@ -888,6 +889,7 @@ function pickBoard(){
 }
 
 let _scatterMode=false;
+const _duellUnlock=new URLSearchParams(location.search).has('duell');
 let _lyingWords=[];
 let _lyingShow=[];
 const STONE_DIST={E:8,N:5,I:4,S:4,A:3,R:3,T:3,D:2,H:2,L:2,O:2,U:2,B:1,C:1,F:1,G:1,K:1,M:1,P:1,W:1};
@@ -964,6 +966,25 @@ function _missedWordList(preBoard, player){
 
 function renderGameover(){
   const c1=cnt(board,P1),c2=cnt(board,P2);
+  if(duellMode){
+    const w=_gameWinner;
+    const p1w=(w===P1)||(w===null&&c1>c2), p2w=(w===P2)||(w===null&&c2>c1);
+    const wTxt=p1w?"🟠 ORANGE GEWINNT!":p2w?"🟣 VIOLETT GEWINNT!":"UNENTSCHIEDEN";
+    const wc=p1w?"#e07820":p2w?"#9b6ab5":"#fff";
+    return `<div style="min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px">
+      <div class="title-sm" style="color:${wc}">${wTxt}</div>
+      <div style="display:flex;gap:22px;align-items:center;font-family:'Libre Franklin',sans-serif;font-weight:800;font-size:34px">
+        <div style="color:#e07820">${c1}</div>
+        <div style="color:rgba(255,255,255,.3);font-size:18px">:</div>
+        <div style="color:#9b6ab5">${c2}</div>
+      </div>
+      <div style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:2px">DUELL · STEINE AM ENDE</div>
+      <div style="display:flex;gap:12px;margin-top:14px">
+        <button class="ctrl-btn gold" onclick="fullReset();simPhase='board-choice';render()" style="padding:12px 24px;font-size:10px">↺ NOCHMAL</button>
+        <button class="ctrl-btn" onclick="fullReset();simPhase='intro';render()" style="padding:12px 24px;font-size:10px">MENÜ</button>
+      </div>
+    </div>`;
+  }
   const myCount=humanPlayer===P1?c1:c2;
   const aiCount=humanPlayer===P1?c2:c1;
   const win=_gameWinner!==null?_gameWinner===humanPlayer:myCount>aiCount,draw=_gameWinner===null&&myCount===aiCount;
@@ -2046,7 +2067,22 @@ function revealTick(){
   revealTimer=setTimeout(()=>revealTick(),delay);
 }
 
+function nextSide(){
+  if(duellMode){
+    const t=humanPlayer;humanPlayer=aiPlayer;aiPlayer=t;
+    turn=humanPlayer;render();
+    setTimeout(()=>startHumanTurn(),500);
+  } else {
+    setTimeout(()=>humanAITurn(),600);
+  }
+}
 function chooseStarter(humanStarts){
+  if(duellMode){
+    humanPlayer=humanStarts?P1:P2;aiPlayer=humanStarts?P2:P1;
+    turn=humanPlayer;startGame();render();
+    setTimeout(()=>startHumanTurn(),600);
+    return;
+  }
   humanStartsGame=humanStarts;simPhase="color-pick";render();
   if(humanStarts){
     setTimeout(()=>{
@@ -2122,7 +2158,7 @@ function startHumanTurn(){
     comment="Keine legalen Züge — Bot dran.";commentCls="ai";
     hPhase="idle";render();timer=setTimeout(()=>humanAITurn(),1500);return;
   }
-  comment='<b>Dein Zug.</b> Wähle einen deiner <span style="color:'+(humanPlayer===1?'#e07820':'#9b6ab5')+';font-weight:900">'+(humanPlayer===1?'orangenen':'violetten')+'</span> Buchstaben.';
+  comment='<b>'+(duellMode?(humanPlayer===1?'Orange':'Violett')+' am Zug.':'Dein Zug.')+'</b> Wähle einen '+(duellMode?'':'deiner ')+'<span style="color:'+(humanPlayer===1?'#e07820':'#9b6ab5')+';font-weight:900">'+(humanPlayer===1?'orangenen':'violetten')+'</span> Buchstaben.';
   commentCls="human";render();
 }
 
@@ -2442,7 +2478,7 @@ function humanDoPush(push){
       const _wdMove = moveNum;
       if(_wdCap.length>0){
         setTimeout(()=>{
-          if(hPhase!=="placing" && turn===humanPlayer && moveNum===_wdMove && !gameEnding && !pendingNextTurn){
+          if(!duellMode && hPhase!=="placing" && turn===humanPlayer && moveNum===_wdMove && !gameEnding && !pendingNextTurn){
             // Animations-Callback verloren — Setz-Phase erzwingen (Wachhund)
             wordHLMap={};activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();wordBoxKills=0;wordBoxBadgeShown=false;
             const _wz=document.getElementById("wordZoneMob");if(_wz)_wz.innerHTML="";
@@ -2477,7 +2513,7 @@ function humanDoPush(push){
           setReturnComment();render();
         } else if(hPhase!=="placing") {
           commentCls="human";activeWordBoxes=[];backAvailable=true;lastCompleted="human";
-          pendingNextTurn=()=>{turn=aiPlayer;if(!checkGameEnd())setTimeout(()=>humanAITurn(),600);};
+          pendingNextTurn=()=>{turn=aiPlayer;if(!checkGameEnd())nextSide();};
           render();
         }
       });
@@ -2501,7 +2537,7 @@ function humanDoPush(push){
       }
       _hiddenWord=null;_hiddenBoard=null;
       backAvailable=true;lastCompleted="human";
-      pendingNextTurn=()=>{turn=aiPlayer;if(!checkGameEnd())setTimeout(()=>humanAITurn(),600);};
+      pendingNextTurn=()=>{turn=aiPlayer;if(!checkGameEnd())nextSide();};
     }
     render();
     // end result
@@ -3010,11 +3046,12 @@ function render(){
       <div style="animation:float 3s ease-in-out infinite;margin-bottom:6px"><div class="title">SHOVE</div></div>
       <div style="font-size:9px;color:rgba(255,255,255,.55);letter-spacing:3px;margin-bottom:16px;font-family:'Libre Franklin',sans-serif;font-weight:800">PUSH · SPELL · SURVIVE</div>
       <div style="display:flex;flex-direction:column;gap:14px;width:100%;max-width:280px">
-        <button class="ctrl-btn gold" onclick="simPhase='name-entry';render()" style="padding:18px;font-size:13px;letter-spacing:2px;width:100%">SPIELEN</button>
+        <button class="ctrl-btn gold" onclick="duellMode=false;simPhase='name-entry';render()" style="padding:18px;font-size:13px;letter-spacing:2px;width:100%">SPIELEN</button>
+        <button class="ctrl-btn" onclick="duellMode=true;playerName='Duell';simPhase='board-choice';render()" style="padding:13px;font-size:11px;letter-spacing:2px;width:100%${_duellUnlock?'':';display:none'}">🤝 DUELL — 2 SPIELER, 1 GERÄT</button>
         <button class="ctrl-btn" onclick="simPhase='rules';render()" style="padding:13px;font-size:11px;letter-spacing:2px;width:100%">📖 SO GEHT'S</button>
       </div>
       <div style="margin-top:28px;font-size:9px;color:rgba(255,255,255,.25);letter-spacing:2px;line-height:1.8;text-align:center">SHOVE™ · © 2026 Marc Conrad</div>
-      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.6</div>
+      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.42);letter-spacing:3px;font-family:'Libre Franklin',sans-serif;font-weight:700">v2.7</div>
     </div>`;
     return;
   }
@@ -3116,7 +3153,7 @@ function render(){
       bHtml2+=`</div>`;
     }
     if(_scatterMode&&revealDone){
-      for(const w of _lyingShow){
+      for(const w of (duellMode?[]:_lyingShow)){
         const a=PK(w.cells[0]),b=PK(w.cells[w.cells.length-1]),P=5;
         const col=w.dir==="row"?"#4caf50":"#42a5f5";
         const l=Math.min(a.x,b.x)*(CELL+GAP)+12-P,t=Math.min(a.y,b.y)*(CELL+GAP)+12-P;
@@ -3138,10 +3175,10 @@ function render(){
       <div style="margin-top:12px;font-size:10px;color:rgba(255,255,255,.5);letter-spacing:1px">Wer fängt an?</div>
       <div style="display:flex;gap:16px;margin-top:10px">
         <div onclick="chooseStarter(true)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 22px;border-radius:14px;border:2px solid rgba(245,158,11,.35);background:rgba(245,158,11,.08)">
-          <div style="font-family:'Libre Franklin',sans-serif;font-size:20px;font-weight:800;color:#f59e0b;letter-spacing:3px">ICH</div><div style="font-family:'Libre Franklin',sans-serif;font-size:11px;font-weight:900;color:#f59e0b;letter-spacing:1px">BEGINNE</div>
+          <div style="font-family:'Libre Franklin',sans-serif;font-size:20px;font-weight:800;color:#f59e0b;letter-spacing:3px">${duellMode?"🟠":"ICH"}</div><div style="font-family:'Libre Franklin',sans-serif;font-size:11px;font-weight:900;color:#f59e0b;letter-spacing:1px">${duellMode?"ORANGE BEGINNT":"BEGINNE"}</div>
         </div>
         <div onclick="chooseStarter(false)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 22px;border-radius:14px;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)">
-          <div style="font-family:'Libre Franklin',sans-serif;font-size:20px;font-weight:800;color:#fff;letter-spacing:3px">BOT</div><div style="font-family:'Libre Franklin',sans-serif;font-size:11px;font-weight:900;color:rgba(255,255,255,.85);letter-spacing:1px">BEGINNT</div>
+          <div style="font-family:'Libre Franklin',sans-serif;font-size:20px;font-weight:800;color:#fff;letter-spacing:3px">${duellMode?"🟣":"BOT"}</div><div style="font-family:'Libre Franklin',sans-serif;font-size:11px;font-weight:900;color:rgba(255,255,255,.85);letter-spacing:1px">${duellMode?"VIOLETT BEGINNT":"BEGINNT"}</div>
         </div>
       </div>`:`<div style="margin-top:16px;font-size:10px;color:rgba(255,255,255,.3);letter-spacing:1px">Brett wird ${_scatterMode?"gemischt":"geladen"}…</div>`}
     </div>`;
@@ -3230,7 +3267,7 @@ function render(){
   const c1=cnt(board,P1),c2=cnt(board,P2);
   const myCount=humanPlayer===P1?c1:c2,aiCount=humanPlayer===P1?c2:c1;
   const myColor=humanPlayer===P1?"#e07820":"#9b6ab5",aiColor=humanPlayer===P1?"#9b6ab5":"#e07820";
-  const badge=turn===humanPlayer?`<div class="phase-badge you">DEIN ZUG</div>`:`<div class="phase-badge ki">BOT DENKT</div>`;
+  const badge=duellMode?`<div class="phase-badge you">${humanPlayer===P1?"🟠 ORANGE":"🟣 VIOLETT"} AM ZUG</div>`:(turn===humanPlayer?`<div class="phase-badge you">DEIN ZUG</div>`:`<div class="phase-badge ki">BOT DENKT</div>`);
   // Build board HTML
   const origin=hDest||hSel;
   const pushes=origin&&simPhase==="pushing"?getPushesFrom(board,humanPlayer,origin.x,origin.y):[];
@@ -3318,13 +3355,13 @@ function render(){
   app.innerHTML=`${badge}
     <div class="stone-bar" style="margin-top:60px">
       <div class="stone-count ${humanPlayer===P1?"p1c":"p2c"}">
-        <div class="stone-lbl">DU</div>
+        <div class="stone-lbl">${duellMode?"AM ZUG":"DU"}</div>
         <div class="stone-num" style="color:${myColor}">${myCount}</div>
         <div class="stone-lbl">${humanPlayer===P1?"ORANGE":"VIOLETT"}</div>
       </div>
       <div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:2px;padding:0 8px">VS</div>
       <div class="stone-count ${aiPlayer===P1?"p1c":"p2c"}">
-        <div class="stone-lbl">BOT</div>
+        <div class="stone-lbl">${duellMode?"WARTET":"BOT"}</div>
         <div class="stone-num" style="color:${aiColor}">${aiCount}</div>
         <div class="stone-lbl">${aiPlayer===P1?"ORANGE":"VIOLETT"}</div>
       </div>
@@ -3380,7 +3417,7 @@ function onPlay(){
     gameStats[humanPlayer===P1?'p1ret':'p2ret']+=hRetPlaced.length;
     for(const p of hRetPlaced)returnedKeys.delete(p.k);hRetPlaced=[];
     activeWordBoxes=[];wordHLMap={};lastCompleted="human";
-    turn=aiPlayer;if(!checkGameEnd())setTimeout(()=>humanAITurn(),600);
+    turn=aiPlayer;if(!checkGameEnd())nextSide();
     render();return;
   }
   if(simPhase==="ki-decided"){
