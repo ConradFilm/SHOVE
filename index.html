@@ -2163,9 +2163,11 @@ function checkGameEnd(){
   }
   const winner=loser===P1?P2:P1;_gameWinner=winner;
   const lCount=Math.min(c1,c2);
-  comment=winner===humanPlayer
+  comment=duellMode
+    ?`<b style="color:#4caf50">${winner===P1?"Orange":"Violett"} gewinnt.</b> Gegner: noch ${lCount} Buchstabe${lCount!==1?"n":""} übrig.`
+    :(winner===humanPlayer
     ?`<b style="color:#4caf50">Du gewinnst.</b> Bot noch ${lCount} Buchstabe${lCount!==1?"n":""} übrig.`
-    :`<b style="color:#ef4444">Bot gewinnt.</b> Du hast noch ${lCount} Buchstabe${lCount!==1?"n":""} übrig.`;
+    :`<b style="color:#ef4444">Bot gewinnt.</b> Du hast noch ${lCount} Buchstabe${lCount!==1?"n":""} übrig.`);
   commentCls="gold";wordHLMap={};activeWordBoxes=[];wordBoxCells=new Set();activeWordKeys=new Set();render();
   setTimeout(()=>{simPhase="gameover";
     // Beim Spielende keine Sprechblase mehr — Analyse-Screen ist eigenständig
@@ -2190,7 +2192,7 @@ function startHumanTurn(){
     }
   }
   if(!hasMoves){
-    comment="Keine legalen Züge — Bot dran.";commentCls="ai";
+    comment=duellMode?"Keine legalen Züge — Gegner dran.":"Keine legalen Züge — Bot dran.";commentCls="ai";
     hPhase="idle";render();timer=setTimeout(()=>humanAITurn(),1500);return;
   }
   comment='<b>'+(duellMode?(humanPlayer===1?'Orange':'Violett')+' am Zug.':'Dein Zug.')+'</b> Wähle einen '+(duellMode?'':'deiner ')+'<span style="color:'+(humanPlayer===1?'#e07820':'#9b6ab5')+';font-weight:900">'+(humanPlayer===1?'orangenen':'violetten')+'</span> Buchstaben.';
@@ -2504,8 +2506,8 @@ function humanDoPush(push){
       const wn=_hlWords.map(w=>`<span style="color:${w.dir==="row"?"#4caf50":"#42a5f5"};font-weight:900">${w.word}</span>`).join(' · ');
       const _humanLossP4 = push.result.removed.filter(x => x.owner === humanPlayer).length;
       const _elimStr = _humanLossP4 > 0
-        ? `${kills} Bot-Bst. eliminiert, ${_humanLossP4} ${_humanLossP4===1?'eigener':'eigene'} verloren`
-        : `${kills} Bot-Bst. eliminiert`;
+        ? `${kills} ${duellMode?(kills===1?'gegnerischer Stein':'gegnerische Steine'):'Bot-Bst.'} eliminiert, ${_humanLossP4} ${_humanLossP4===1?'eigener':'eigene'} verloren`
+        : `${kills} ${duellMode?(kills===1?'gegnerischer Stein':'gegnerische Steine'):'Bot-Bst.'} eliminiert`;
       comment=`Zug ${moveNum} — <b>${pieceCh}</b> ${fc}${fr}→${tc}${tr} · ${wn} · ${_elimStr}`;
       commentCls="hl";render();
       _breathing=true;
@@ -2556,8 +2558,8 @@ function humanDoPush(push){
       wordBoxKills=0;wordBoxBadgeShown=false;
       const _humanLossP4nw = push.result.removed.filter(x => x.owner === humanPlayer).length;
       const _elimStrNw = _humanLossP4nw > 0
-        ? `${kills} Bot-Bst. eliminiert, ${_humanLossP4nw} ${_humanLossP4nw===1?'eigener':'eigene'} verloren`
-        : `${kills} Bot-Bst. eliminiert`;
+        ? `${kills} ${duellMode?(kills===1?'gegnerischer Stein':'gegnerische Steine'):'Bot-Bst.'} eliminiert, ${_humanLossP4nw} ${_humanLossP4nw===1?'eigener':'eigene'} verloren`
+        : `${kills} ${duellMode?(kills===1?'gegnerischer Stein':'gegnerische Steine'):'Bot-Bst.'} eliminiert`;
       comment=`Zug ${moveNum} — <b>${pieceCh}</b> ${fc}${fr}→${tc}${tr} · ${_elimStrNw}`;
       commentCls="";wordHLMap={};
       // Track missed word opportunity — Wörter aus der Stellung VOR dem Zug (korrekt + Anzahl)
@@ -3201,9 +3203,9 @@ function render(){
       <div style="font-size:9px;letter-spacing:3px;color:rgba(255,255,255,.4);margin-top:90px;margin-bottom:18px">${_scatterMode?"DAS BRETT":"BRETT #"+_currentBoardIndex}</div>
       <div style="transform:scale(${sc2});transform-origin:top center;width:${vpW2}px">${bHtml2}</div>
       ${revealDone?`<div style="margin-top:12px;text-align:center">
-        ${_scatterMode?`<div style="font-size:10px;color:rgba(255,255,255,.6);letter-spacing:.5px;margin:0 auto 12px;max-width:340px;line-height:1.6">Diese Wörter liegen schon.<br>Sie zählen erst, wenn ein Zug sie verschiebt oder vollendet.</div>`:``}
-        <div style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:6px">BOT-STÄRKE</div>
-        <div style="display:flex;gap:10px;justify-content:center;align-items:flex-start">
+        ${_scatterMode?`<div style="font-size:10px;color:rgba(255,255,255,.6);letter-spacing:.5px;margin:0 auto 12px;max-width:340px;line-height:1.6${duellMode?';display:none':''}">Diese Wörter liegen schon.<br>Sie zählen erst, wenn ein Zug sie verschiebt oder vollendet.</div>`:``}
+        <div style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:6px${duellMode?';display:none':''}">BOT-STÄRKE</div>
+        <div style="display:${duellMode?'none':'flex'};gap:10px;justify-content:center;align-items:flex-start">
           ${[["Nice",1,"rgba(96,165,250,.9)","Trainingslager"],["Great",2,"rgba(245,158,11,.9)","Wörter bilden"],["Sharp",3,"rgba(239,68,68,.9)","Das Turnier"]].map(([lbl,lv,col,desc])=>`<div onclick="kiLevel=${lv};render()" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer"><div style="padding:7px 14px;border-radius:10px;border:1.5px solid ${kiLevel===lv?col:"rgba(255,255,255,.1)"};background:${kiLevel===lv?"rgba(255,255,255,.08)":"rgba(255,255,255,.03)"};font-size:10px;font-weight:${kiLevel===lv?900:600};color:${kiLevel===lv?col:"rgba(255,255,255,.5)"};transition:all .15s">${lbl}</div><div style="font-size:9px;color:${kiLevel===lv?col:"rgba(255,255,255,.4)"};letter-spacing:.5px;font-weight:${kiLevel===lv?700:500};transition:all .15s">${desc}</div></div>`).join("")}
         </div>
       </div>
