@@ -2076,6 +2076,41 @@ function nextSide(){
     setTimeout(()=>humanAITurn(),600);
   }
 }
+let _duellStarterS2=null;
+function duellSetupGo(farbe2){
+  const startFarbe=_duellStarterS2?farbe2:(farbe2===1?2:1);
+  _duellStarterS2=null;
+  humanPlayer=startFarbe;aiPlayer=(startFarbe===1)?2:1;
+  turn=humanPlayer;startGame();render();
+  setTimeout(()=>startHumanTurn(),600);
+}
+function _starterCard(onclick,glyph,label,orange){
+  const bd=orange?'rgba(245,158,11,.35)':'rgba(255,255,255,.12)';
+  const bg=orange?'rgba(245,158,11,.08)':'rgba(255,255,255,.05)';
+  const col=orange?'#f59e0b':'#fff';
+  const col2=orange?'#f59e0b':'rgba(255,255,255,.85)';
+  return '<div onclick="'+onclick+'" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 22px;border-radius:14px;border:2px solid '+bd+';background:'+bg+'">'
+    +'<div style="font-family:\'Libre Franklin\',sans-serif;font-size:20px;font-weight:800;color:'+col+';letter-spacing:3px">'+glyph+'</div>'
+    +'<div style="font-family:\'Libre Franklin\',sans-serif;font-size:11px;font-weight:900;color:'+col2+';letter-spacing:1px">'+label+'</div></div>';
+}
+function _starterHTML(){
+  const kopf=function(t){return '<div style="margin-top:12px;font-size:10px;color:rgba(255,255,255,.5);letter-spacing:1px">'+t+'</div>';};
+  const reihe=function(inner){return '<div style="display:flex;gap:16px;margin-top:10px;justify-content:center">'+inner+'</div>';};
+  if(!duellMode){
+    return kopf('Wer fängt an?')+reihe(
+      _starterCard('chooseStarter(true)','ICH','BEGINNE',true)+
+      _starterCard('chooseStarter(false)','BOT','BEGINNT',false));
+  }
+  if(_duellStarterS2===null){
+    return kopf('SPIELER 1 · Ihr habt das Brett gesehen — wer beginnt?')+reihe(
+      _starterCard('_duellStarterS2=false;render()','1','SPIELER 1 BEGINNT',true)+
+      _starterCard('_duellStarterS2=true;render()','2','SPIELER 2 BEGINNT',false));
+  }
+  return kopf('SPIELER 2 · Wähle deine Farbe')+reihe(
+    _starterCard('duellSetupGo(1)','🟠','ORANGE',true)+
+    _starterCard('duellSetupGo(2)','🟣','VIOLETT',false))
+    +'<div onclick="_duellStarterS2=null;render()" style="margin-top:10px;font-size:9px;color:rgba(255,255,255,.35);letter-spacing:1px;cursor:pointer">← zurück</div>';
+}
 function chooseStarter(humanStarts){
   if(duellMode){
     humanPlayer=humanStarts?P1:P2;aiPlayer=humanStarts?P2:P1;
@@ -3172,15 +3207,7 @@ function render(){
           ${[["Nice",1,"rgba(96,165,250,.9)","Trainingslager"],["Great",2,"rgba(245,158,11,.9)","Wörter bilden"],["Sharp",3,"rgba(239,68,68,.9)","Das Turnier"]].map(([lbl,lv,col,desc])=>`<div onclick="kiLevel=${lv};render()" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer"><div style="padding:7px 14px;border-radius:10px;border:1.5px solid ${kiLevel===lv?col:"rgba(255,255,255,.1)"};background:${kiLevel===lv?"rgba(255,255,255,.08)":"rgba(255,255,255,.03)"};font-size:10px;font-weight:${kiLevel===lv?900:600};color:${kiLevel===lv?col:"rgba(255,255,255,.5)"};transition:all .15s">${lbl}</div><div style="font-size:9px;color:${kiLevel===lv?col:"rgba(255,255,255,.4)"};letter-spacing:.5px;font-weight:${kiLevel===lv?700:500};transition:all .15s">${desc}</div></div>`).join("")}
         </div>
       </div>
-      <div style="margin-top:12px;font-size:10px;color:rgba(255,255,255,.5);letter-spacing:1px">Wer fängt an?</div>
-      <div style="display:flex;gap:16px;margin-top:10px">
-        <div onclick="chooseStarter(true)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 22px;border-radius:14px;border:2px solid rgba(245,158,11,.35);background:rgba(245,158,11,.08)">
-          <div style="font-family:'Libre Franklin',sans-serif;font-size:20px;font-weight:800;color:#f59e0b;letter-spacing:3px">${duellMode?"🟠":"ICH"}</div><div style="font-family:'Libre Franklin',sans-serif;font-size:11px;font-weight:900;color:#f59e0b;letter-spacing:1px">${duellMode?"ORANGE BEGINNT":"BEGINNE"}</div>
-        </div>
-        <div onclick="chooseStarter(false)" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 22px;border-radius:14px;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)">
-          <div style="font-family:'Libre Franklin',sans-serif;font-size:20px;font-weight:800;color:#fff;letter-spacing:3px">${duellMode?"🟣":"BOT"}</div><div style="font-family:'Libre Franklin',sans-serif;font-size:11px;font-weight:900;color:rgba(255,255,255,.85);letter-spacing:1px">${duellMode?"VIOLETT BEGINNT":"BEGINNT"}</div>
-        </div>
-      </div>`:`<div style="margin-top:16px;font-size:10px;color:rgba(255,255,255,.3);letter-spacing:1px">Brett wird ${_scatterMode?"gemischt":"geladen"}…</div>`}
+      ${_starterHTML()}`:`<div style="margin-top:16px;font-size:10px;color:rgba(255,255,255,.3);letter-spacing:1px">Brett wird ${_scatterMode?"gemischt":"geladen"}…</div>`}
     </div>`;
     return;
   }
