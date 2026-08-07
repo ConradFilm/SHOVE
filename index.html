@@ -2108,20 +2108,32 @@ function _starterCard(onclick,glyph,label,orange){
     +'<div style="font-family:\'Libre Franklin\',sans-serif;font-size:20px;font-weight:800;color:'+col+';letter-spacing:3px">'+glyph+'</div>'
     +'<div style="font-family:\'Libre Franklin\',sans-serif;font-size:11px;font-weight:900;color:'+col2+';letter-spacing:1px">'+label+'</div></div>';
 }
+let _wcache={sig:'',words:null};
+function _bildbareWoerter(){
+  // Alle Wörter, die die Farbe am Zug mit EINEM legalen Zug neu bilden kann
+  const sig=Object.keys(board).sort().map(k=>k+board[k].owner+board[k].ch).join('|')+'#'+humanPlayer;
+  if(_wcache.sig===sig&&_wcache.words)return _wcache.words;
+  const bSet=new Set(findAllWords(board,WORDS_PLAYER).map(wordKey));
+  const mv=evalMoves(board,humanPlayer,bSet,8);
+  const map=new Map();
+  for(const m of mv){
+    if(!m.move.word)continue;
+    const neu=findAllWords(m.board,WORDS_PLAYER).filter(w=>!bSet.has(wordKey(w)));
+    for(const w of neu){if(!map.has(w.word))map.set(w.word,w.word.length);}
+  }
+  const words=[...map.keys()];
+  _wcache={sig,words};
+  return words;
+}
 function _wortPanel(){
   if(!duellMode||!_wshow||!board)return '';
-  const ws=findAllWords(board,WORDS_PLAYER);
-  const seen=new Set();const list=[];
-  for(const w of ws){const kk=w.word+'@'+w.cells[0]+w.dir;if(seen.has(kk))continue;seen.add(kk);list.push(w);}
-  const gef=(_wshow===4)?list.filter(w=>w.word.length>=4):list;
-  gef.sort((a,b)=>b.word.length-a.word.length||a.word.localeCompare(b.word));
-  const chips=gef.map(w=>{
-    const p=w.cells[0].split(',');const co=String.fromCharCode(65+parseInt(p[0]))+(parseInt(p[1])+1);
-    const pf=(w.dir==='row')?'\u2192':'\u2193';
-    return '<span style="display:inline-block;margin:2px 3px;padding:3px 8px;border-radius:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);font-size:11px;letter-spacing:1px">'+w.word+' <span style="opacity:.55;font-size:9px">'+co+' '+pf+'</span></span>';
-  }).join('');
+  const alle=_bildbareWoerter();
+  const gef=alle.filter(w=>w.length>=_wshow);
+  gef.sort((a,b)=>b.length-a.length||a.localeCompare(b));
+  const chips=gef.map(w=>'<span style="display:inline-block;margin:2px 3px;padding:3px 8px;border-radius:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);font-size:11px;letter-spacing:1px">'+w+'</span>').join('');
+  const farbe=(humanPlayer===P1)?'ORANGE':'VIOLETT';
   return '<div style="margin:6px auto 2px;max-width:380px;text-align:center;padding:8px;border-radius:12px;background:rgba(0,0,0,.25)">'
-    +'<div style="font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.45);margin-bottom:4px">W\u00d6RTER AUF DEM BRETT (AB '+_wshow+') \u00b7 '+gef.length+'</div>'
+    +'<div style="font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.45);margin-bottom:4px">BILDBARE W\u00d6RTER (AB '+_wshow+') \u00b7 F\u00dcR '+farbe+' \u00b7 '+gef.length+'</div>'
     +(chips||'<span style="font-size:11px;color:rgba(255,255,255,.5)">keine</span>')+'</div>';
 }
 function _starterHTML(){
